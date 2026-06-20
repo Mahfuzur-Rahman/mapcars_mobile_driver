@@ -1,0 +1,52 @@
+name: mapcars_driver
+description: "Mapcars — UK ride-hailing driver mobile app (Flutter)."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^2.5.1   # state management
+  go_router: ^14.2.0         # navigation
+  dio: ^5.4.3                # HTTP client for the Mapcars API
+  flutter_dotenv: ^5.1.0     # .env config
+  flutter_secure_storage: ^9.2.2  # persisted auth session (Keystore / Keychain)
+
+  # Maps / navigation — uncomment when wiring turn-by-turn. Needs native config
+  # (Android minSdk 21+, a download token in gradle/Info.plist). See instruction.md.
+  # mapbox_maps_flutter: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1   # generates app launcher icons
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/images/
+  fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito.ttf   # variable font (weights 200–900)
+
+# App launcher icon (MAP CARS logo). Regenerate with:
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false   # iOS platform not generated yet (android-only build); flip to true after `flutter create --platforms=ios`
+  image_path: "assets/images/logo-round.png"          # legacy icon
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  background_color_ios: "#FFFFFF"
+  adaptive_icon_background: "#FFFFFF"                   # Android 8+ adaptive
+  adaptive_icon_foreground: "assets/images/icon_fg.png" # padded so text isn't clipped
+  web:
+    generate: true
+    image_path: "assets/images/logo-round.png"
