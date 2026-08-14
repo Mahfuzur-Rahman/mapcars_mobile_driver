@@ -1,40 +1,252 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/network/api_client.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/widgets/mc.dart';
-import '../../../core/widgets/map_background.dart';
+import '../../../core/widgets/current_location_map.dart';
+import '../../auth/providers/driver_approval_provider.dart';
+import '../../auth/services/driver_auth_service.dart';
+import '../providers/dispatch_board_controller.dart';
+import '../providers/driver_location_reporting_controller.dart';
+import '../providers/trip_realtime_controller.dart';
+import '../services/trip_service.dart';
+import 'widgets/request_card.dart';
 
-class DriverHomeScreen extends StatefulWidget {
+class DriverHomeScreen extends ConsumerStatefulWidget {
   const DriverHomeScreen({super.key});
 
   @override
-  State<DriverHomeScreen> createState() => _DriverHomeScreenState();
+  ConsumerState<DriverHomeScreen> createState() => _DriverHomeScreenState();
 }
 
-class _DriverHomeScreenState extends State<DriverHomeScreen> {
-  bool _online = true;
+class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
+  /// Starts offline. Going online is a deliberate act that the API only allows
+  /// once an admin has approved this driver — never the screen's default.
+  /// [_hydrateOnline] then corrects it to whatever the server already thinks.
+  bool _online = false;
+
+  /// The server's `isOnline` is only adopted once per mount, so a driver who
+  /// then toggles offline isn't flipped back on by a late profile load.
+  bool _hydrated = false;
+
+  LatLng? _lastFix;
+  BitmapDescriptor? _requestIcon;
+
+  @override
+  void initState() {
+    super.initState();
+    _drawRequestIcon().then((icon) {
+      if (mounted) setState(() => _requestIcon = icon);
+    });
+    _resumeActiveTrip();
+  }
+
+  /// A driver whose app was killed mid-job lands here instead of on their
+  /// active trip. Re-arm location relaying (otherwise the rider's map freezes
+  /// for the rest of the ride) and put them back on the right screen.
+  Future<void> _resumeActiveTrip() async {
+    Trip active;
+    try {
+      final trips = ref.read(tripServiceProvider);
+      final mine = await trips.mine();
+      final live = mine.where((t) =>
+          t.status == TripStatus.driverAssigned ||
+          t.status == TripStatus.driverArrived ||
+          t.status == TripStatus.inProgress);
+      if (live.isEmpty) return;
+
+      final candidate = live.reduce(
+          (a, b) => a.createdAtUtc.isAfter(b.createdAtUtc) ? a : b);
+      // `mine` is a list view and omits the rider details and PIN, which the
+      // arrived screen needs — re-fetch the trip in full.
+      active = await trips.get(candidate.id);
+    } catch (_) {
+      return; // Offline or the call failed — home is a safe place to land.
+    }
+    if (!mounted) return;
+
+    // Re-arm location relaying before navigating away. This screen's
+    // `_onLocated` is what normally starts it, and we're about to leave before
+    // it ever fires — without this the rider's map freezes for the rest of the
+    // ride. Both calls are idempotent.
+    final reporting = ref.read(driverLocationReportingProvider);
+    reporting.setActiveTrip(active.id);
+    reporting.start();
+    unawaited(ref.read(tripRealtimeProvider.notifier).attach(active.id));
+
+    final destination = switch (active.status) {
+      TripStatus.driverAssigned => '/nav-pickup',
+      TripStatus.driverArrived => '/arrived',
+      TripStatus.inProgress => '/driving',
+      _ => null,
+    };
+    if (destination != null) context.go(destination, extra: active);
+  }
+
+  void _onLocated(LatLng me) {
+    _lastFix = me;
+    if (_online) {
+      ref.read(driverLocationReportingProvider).start();
+      ref.read(dispatchBoardProvider.notifier).start(me.latitude, me.longitude);
+    }
+  }
+
+  Future<void> _acceptRequest(Trip trip) async {
+    final accepted = await ref.read(dispatchBoardProvider.notifier).accept(trip.id);
+    if (!mounted) return;
+    if (accepted != null) {
+      ref.read(driverLocationReportingProvider).setActiveTrip(accepted.id);
+      unawaited(ref.read(tripRealtimeProvider.notifier).attach(accepted.id));
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('Trip accepted — head to the pickup.'),
+        ));
+      context.go('/nav-pickup', extra: accepted);
+    } else {
+      final error = ref.read(dispatchBoardProvider).error;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(error ?? 'That request is no longer available.'),
+        ));
+    }
+  }
+
+  void _ignoreRequest(String tripId) =>
+      ref.read(dispatchBoardProvider.notifier).ignore(tripId);
+
+  Future<void> _setOnline(bool value) async {
+    // An unapproved driver can't go online — say why instead of firing a call
+    // the API will refuse. (Going offline is always allowed.)
+    final approval =
+        ref.read(driverApprovalProvider).valueOrNull ?? DriverApproval.unknown;
+    if (value && !approval.canWork) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(approval.blockedCopy.$2)));
+      return;
+    }
+
+    final previous = _online;
+    setState(() => _online = value);
+    final token = ref.read(authTokenProvider);
+
+    if (!value) {
+      // Stop pushing first: that DELETEs this driver from the live pool, so the
+      // car leaves riders' maps immediately rather than lingering for the 60s
+      // staleness window.
+      await ref.read(driverLocationReportingProvider).stop();
+      await ref.read(dispatchBoardProvider.notifier).stop();
+    }
+
+    // Persist availability to the backend. Going online this MUST land before
+    // the first location push: the API drops (and evicts) any push from a
+    // driver it still has as offline, so starting first would throw the
+    // opening fixes away and keep the car off riders' maps.
+    if (token != null) {
+      try {
+        await ref.read(driverAuthServiceProvider).setAvailability(value);
+      } catch (e) {
+        if (!mounted) return;
+        if (value) {
+          // If going online failed, revert back to offline
+          setState(() => _online = previous);
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              content: Text(e is ApiException
+                  ? e.message
+                  : "Couldn't update your status. Please try again."),
+            ));
+          await ref.read(dispatchBoardProvider.notifier).stop();
+          return;
+        }
+        // Going offline: the local stop above already pulled us from the pool.
+      }
+    }
+
+    if (value) {
+      ref.read(driverLocationReportingProvider).start();
+      if (_lastFix != null) {
+        ref
+            .read(dispatchBoardProvider.notifier)
+            .start(_lastFix!.latitude, _lastFix!.longitude);
+      }
+    }
+  }
+
+  /// Adopt the server's view of this driver once the profile loads. Without it
+  /// the switch reads "Offline" after every app restart while the API still has
+  /// the driver online — the driver believes they're working, but nothing is
+  /// pushing their position, so riders see no car and no requests arrive.
+  void _hydrateOnline(DriverApproval approval) {
+    if (_hydrated) return;
+    _hydrated = true;
+    if (!approval.isOnline || !approval.canWork || _online) return;
+
+    setState(() => _online = true);
+    ref.read(driverLocationReportingProvider).start();
+    if (_lastFix != null) {
+      ref
+          .read(dispatchBoardProvider.notifier)
+          .start(_lastFix!.latitude, _lastFix!.longitude);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Only the requests board is screen-local — location reporting must keep
+    // running through an active trip (or any other screen) while online; see
+    // `DriverLocationReportingController`.
+    ref.read(dispatchBoardProvider.notifier).stop();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final board = ref.watch(dispatchBoardProvider);
+    final approvalAsync = ref.watch(driverApprovalProvider);
+    final approval = approvalAsync.valueOrNull ?? DriverApproval.unknown;
+    // Runs on the build after the profile arrives — never during build itself.
+    if (approvalAsync.hasValue && !_hydrated) {
+      final loaded = approvalAsync.requireValue;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _hydrateOnline(loaded);
+      });
+    }
+    // A driver who isn't approved has no board — the API won't serve them one.
+    final focus =
+        approval.canWork && board.trips.isNotEmpty ? board.trips.first : null;
+    final icon = _requestIcon;
+    final markers = icon == null
+        ? const <Marker>{}
+        : {
+            for (final trip in board.trips)
+              Marker(
+                markerId: MarkerId('request-${trip.id}'),
+                position: LatLng(trip.pickupLat, trip.pickupLng),
+                icon: icon,
+                anchor: const Offset(0.5, 1),
+                onTap: () =>
+                    ref.read(dispatchBoardProvider.notifier).bringToFront(trip.id),
+              ),
+          };
+
     return Scaffold(
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: MapBackground(
-              route: false,
-              markers: [
-                MapMarker(0.46, 0.42, CarMark(color: Brand.blue, icon: 'nav')),
-                MapMarker(
-                  0.70,
-                  0.30,
-                  _DemandBlob(size: 70, opacity: 0.25),
-                ),
-                MapMarker(
-                  0.24,
-                  0.56,
-                  _DemandBlob(size: 54, opacity: 0.18),
-                ),
-              ],
+          Positioned.fill(
+            child: CurrentLocationMap(
+              markers: markers,
+              onLocated: _onLocated,
             ),
           ),
           // Top: online status pill + avatar
@@ -45,6 +257,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                const McMenuButton(),
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 7, 8, 7),
                   decoration: const BoxDecoration(
@@ -56,7 +269,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _online ? 'Online' : 'Offline',
+                        !approval.canWork
+                            ? 'Not approved'
+                            : (_online ? 'Online' : 'Offline'),
                         style: tw(FontWeight.w900, 14,
                             _online ? Brand.green : Brand.sub),
                       ),
@@ -72,29 +287,80 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                             activeTrackColor: Brand.green,
                             inactiveThumbColor: Colors.white,
                             inactiveTrackColor: Brand.line,
-                            onChanged: (v) => setState(() => _online = v),
+                            // Null disables the switch outright — an unapproved
+                            // driver has nothing to toggle.
+                            onChanged: approval.canWork ? _setOnline : null,
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                McCircleButton('user', onTap: () => context.go('/profile')),
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final isOnline = ref.watch(apiHealthProvider).value ?? false;
+                            final hasToken = ref.watch(authTokenProvider) != null;
+                            final isConnected = isOnline && hasToken;
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                              decoration: const BoxDecoration(
+                                color: Brand.paper,
+                                borderRadius: BorderRadius.all(Radius.circular(99)),
+                                boxShadow: Brand.floatShadow,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: isConnected ? Brand.green : Colors.amber,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      isConnected ? 'Connected' : 'Offline',
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: tw(FontWeight.w800, 11.5, Brand.sub),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      McCircleButton('search',
+                          onTap: () => context.push('/set-route')),
+                      const SizedBox(width: 6),
+                      McCircleButton('user', onTap: () => context.go('/profile')),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: McSheet(
-              height: 300,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  GestureDetector(
-                    onTap: () => context.go('/request'),
-                    behavior: HitTestBehavior.opaque,
-                    child: Row(
+          if (focus == null)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: McSheet(
+                height: 300,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
                       children: [
                         Container(
                           width: 40,
@@ -105,14 +371,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                               BorderSide(color: Brand.fill, width: 3),
                             ),
                           ),
-                          child: const Padding(
-                            padding: EdgeInsets.all(2),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Brand.green),
-                              backgroundColor: Brand.fill,
-                            ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: approval.canWork
+                                ? const CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Brand.green),
+                                    backgroundColor: Brand.fill,
+                                  )
+                                : const Icon(Icons.hourglass_top_rounded,
+                                    size: 22, color: Brand.sub),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -121,10 +390,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const McTitle('Waiting for requests…', size: 18),
+                              McTitle(
+                                !approval.canWork
+                                    ? approval.blockedCopy.$1
+                                    : (_online
+                                        ? 'Waiting for requests…'
+                                        : "You're offline"),
+                                size: 18,
+                              ),
                               const SizedBox(height: 2),
                               Text(
-                                "You're online near Bethnal Green",
+                                !approval.canWork
+                                    ? approval.blockedCopy.$2
+                                    : (_online
+                                        ? "You'll be notified the moment one comes in"
+                                        : 'Go online to start receiving trip requests'),
                                 style: tw(FontWeight.w600, 13, Brand.sub),
                               ),
                             ],
@@ -132,43 +412,109 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  const McCard(
-                    padding: 14,
-                    child: Row(
+                    const SizedBox(height: 14),
+                    const McCard(
+                      padding: 14,
+                      child: Row(
+                        children: [
+                          _Stat('£62.40', 'Earnings'),
+                          _Stat('5', 'Trips'),
+                          _Stat('3h 12m', 'Online'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
                       children: [
-                        _Stat('£62.40', 'Earnings'),
-                        _Stat('5', 'Trips'),
-                        _Stat('3h 12m', 'Online'),
+                        Expanded(
+                          child: approval.canWork
+                              ? McGhostButton(
+                                  'Earnings',
+                                  icon: 'chart',
+                                  onTap: () => context.go('/earnings'),
+                                )
+                              : McGhostButton(
+                                  'My documents',
+                                  onTap: () => context.go('/documents'),
+                                ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: approval.canWork
+                              ? McGhostButton(
+                                  _online ? 'Go offline' : 'Go online',
+                                  onTap: () => _setOnline(!_online),
+                                )
+                              // Approval lands server-side while the app sits
+                              // here — let the driver re-check without a restart.
+                              : McGhostButton(
+                                  'Check status',
+                                  onTap: () =>
+                                      ref.invalidate(driverApprovalProvider),
+                                ),
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: McGhostButton(
-                          'Earnings',
-                          icon: 'chart',
-                          onTap: () => context.go('/earnings'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: McGhostButton(
-                          _online ? 'Go offline' : 'Go online',
-                          onTap: () => setState(() => _online = !_online),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+          // An open request overlays the waiting sheet.
+          if (focus != null)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: RequestCard(
+                trip: focus,
+                busy: board.busyTripId == focus.id,
+                moreCount: board.trips.length - 1,
+                onAccept: () => _acceptRequest(focus),
+                onIgnore: () => _ignoreRequest(focus.id),
+              ),
+            ),
         ],
       ),
+    );
+  }
+
+  /// Draws the request pickup pin shown on the map for each open request:
+  /// green teardrop with a white "person" dot.
+  static Future<BitmapDescriptor> _drawRequestIcon() async {
+    const w = 96, h = 120;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final paint = Paint()..isAntiAlias = true;
+    const green = Color(0xFF16A34A);
+
+    const cx = w / 2.0;
+    const headR = 34.0;
+    // Teardrop: circle head + triangle tail down to the anchor point.
+    paint.color = Colors.black.withValues(alpha: 0.25);
+    canvas.drawCircle(const Offset(cx, headR + 10), headR, paint);
+    paint.color = green;
+    final tail = Path()
+      ..moveTo(cx - 20, headR + 32)
+      ..lineTo(cx, h - 4)
+      ..lineTo(cx + 20, headR + 32)
+      ..close();
+    canvas.drawPath(tail, paint);
+    canvas.drawCircle(const Offset(cx, headR + 6), headR, paint);
+    // White "person": head circle + shoulders arc.
+    paint.color = Colors.white;
+    canvas.drawCircle(const Offset(cx, headR - 6), 10, paint);
+    canvas.drawArc(
+      Rect.fromCenter(
+          center: const Offset(cx, headR + 22), width: 40, height: 34),
+      math.pi,
+      math.pi,
+      true,
+      paint,
+    );
+
+    final image = await recorder.endRecording().toImage(w, h);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(
+      bytes!.buffer.asUint8List(),
+      imagePixelRatio: 2.4,
     );
   }
 }
@@ -187,22 +533,6 @@ class _Stat extends StatelessWidget {
             const SizedBox(height: 2),
             Text(label, style: tw(FontWeight.w700, 11.5, Brand.sub)),
           ],
-        ),
-      );
-}
-
-class _DemandBlob extends StatelessWidget {
-  const _DemandBlob({required this.size, required this.opacity});
-  final double size;
-  final double opacity;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: const Color(0xFFF7961E).withValues(alpha: opacity),
         ),
       );
 }

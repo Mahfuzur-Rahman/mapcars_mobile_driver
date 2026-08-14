@@ -1,7 +1,7 @@
 name: mapcars_driver
 description: "Mapcars — UK ride-hailing driver mobile app (Flutter)."
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.1.0+2
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -15,16 +15,36 @@ dependencies:
   dio: ^5.4.3                # HTTP client for the Mapcars API
   flutter_dotenv: ^5.1.0     # .env config
   flutter_secure_storage: ^9.2.2  # persisted auth session (Keystore / Keychain)
+  shared_preferences: ^2.3.2      # per-user recent-search history (on-device, non-sensitive)
 
-  # Maps / navigation — uncomment when wiring turn-by-turn. Needs native config
-  # (Android minSdk 21+, a download token in gradle/Info.plist). See instruction.md.
-  # mapbox_maps_flutter: ^2.3.0
+  # Maps — live Google map + current-location. Needs native config:
+  # Android location permissions + a Maps SDK for Android key in
+  # android/local.properties (MAPS_API_KEY). See instruction.md §6.
+  google_maps_flutter: ^2.9.0  # Google Maps (native SDK)
+  geolocator: ^13.0.2          # device GPS + location permissions
+
+  # Push notifications (FCM). Needs android/app/google-services.json from the
+  # Firebase project (gitignored). See instruction.md.
+  firebase_core: ^3.6.0        # Firebase init
+  firebase_messaging: ^15.1.3  # Cloud Messaging (trip push notifications)
+
+  # "Continue with Google" — yields the Google ID token we POST to
+  # /api/v1/auth/drivers/google. Needs GOOGLE_SERVER_CLIENT_ID in .env (the OAuth
+  # *Web* client ID) plus the app's SHA-1 registered on the Android OAuth client.
+  google_sign_in: ^6.2.1
+
+  image_picker: ^1.1.2         # profile picture capture (camera/gallery)
+  file_picker: ^8.1.6          # KYC document upload — images AND PDFs (licence/insurance/V5C)
+  signalr_netcore: ^1.4.4
+  url_launcher: ^6.3.1         # opens the Stripe Connect onboarding link in the browser
+  intl: ^0.20.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.14.1   # generates app launcher icons
+  flutter_native_splash: ^2.4.3     # generates the native pre-Flutter launch screen
 
 flutter:
   uses-material-design: true
@@ -41,12 +61,30 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false   # iOS platform not generated yet (android-only build); flip to true after `flutter create --platforms=ios`
-  image_path: "assets/images/logo-round.png"          # legacy icon
+  image_path: "assets/images/app_icon.png"            # legacy icon (mapcars_logo1 on white)
   min_sdk_android: 21
   remove_alpha_ios: true
   background_color_ios: "#FFFFFF"
   adaptive_icon_background: "#FFFFFF"                   # Android 8+ adaptive
-  adaptive_icon_foreground: "assets/images/icon_fg.png" # padded so text isn't clipped
+  adaptive_icon_foreground: "assets/images/icon_fg.png" # mapcars_logo1 padded so text isn't clipped
   web:
     generate: true
-    image_path: "assets/images/logo-round.png"
+    image_path: "assets/images/app_icon.png"
+
+# Native launch screen (shown before the Flutter engine draws the first
+# frame). Plain WHITE background with the MAP CARS logo centred. Regenerate:
+#   dart run flutter_native_splash:create
+flutter_native_splash:
+  # Solid white on all platforms (iOS + Android ≤11 show the full logo centred).
+  color: "#ffffff"
+  image: assets/images/mapcars_logo1.png
+  android_12:
+    # Android 12+ forces a circular mask over the splash icon, so use a logo
+    # pre-fitted inside that circle (android12_splash.png) — this way the whole
+    # wordmark stays visible instead of having its edges clipped.
+    color: "#ffffff"
+    image: assets/images/android12_splash.png
+    icon_background_color: "#ffffff"
+  android: true
+  ios: true
+  web: false

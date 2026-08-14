@@ -51,10 +51,10 @@ class _MapPainter extends CustomPainter {
     Offset p(double x, double y) => Offset(x * sx, y * sy);
 
     // Land.
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFEAEDED));
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFE2E7E8));
 
     // Building footprints (deterministic LCG, like the JSX).
-    final block = Paint()..color = const Color(0xFFE0E3E4);
+    final block = Paint()..color = const Color(0xFFD4D9DB);
     int seed = 11;
     double rnd() {
       seed = (seed * 9301 + 49297) % 233280;
@@ -69,9 +69,9 @@ class _MapPainter extends CustomPainter {
     }
 
     // Park + water.
-    final park = Paint()..color = const Color(0xFFC6E5B6);
+    final park = Paint()..color = const Color(0xFFAEDA98);
     canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(24 * sx, 150 * sy, 118 * sx, 74 * sy), const Radius.circular(13)), park);
-    final water = Paint()..color = const Color(0xFFA9D4F0);
+    final water = Paint()..color = const Color(0xFF86C3E9);
     final wp = Path()
       ..moveTo(-20 * sx, 545 * sy)
       ..quadraticBezierTo(70 * sx, 502 * sy, 132 * sx, 548 * sy)
@@ -82,7 +82,7 @@ class _MapPainter extends CustomPainter {
 
     // Minor roads.
     final roadEdge = Paint()
-      ..color = const Color(0xFFD2D7DA)
+      ..color = const Color(0xFFC3C9CD)
       ..strokeWidth = 8 * sx
       ..strokeCap = StrokeCap.round;
     final road = Paint()
@@ -111,7 +111,7 @@ class _MapPainter extends CustomPainter {
         ..cubicTo(110 * sx, 236 * sy, 214 * sx, 302 * sy, 422 * sx, 266 * sy)),
     ];
     for (final a in arterials) {
-      canvas.drawPath(a, Paint()..color = const Color(0xFFD2D7DA)..style = PaintingStyle.stroke..strokeWidth = 17 * sx..strokeCap = StrokeCap.round);
+      canvas.drawPath(a, Paint()..color = const Color(0xFFC3C9CD)..style = PaintingStyle.stroke..strokeWidth = 17 * sx..strokeCap = StrokeCap.round);
       canvas.drawPath(a, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 12 * sx..strokeCap = StrokeCap.round);
     }
 
@@ -119,8 +119,8 @@ class _MapPainter extends CustomPainter {
     final hw = Path()
       ..moveTo(-20 * sx, 560 * sy)
       ..cubicTo(110 * sx, 520 * sy, 232 * sx, 470 * sy, 422 * sx, 356 * sy);
-    canvas.drawPath(hw, Paint()..color = const Color(0xFFECD589)..style = PaintingStyle.stroke..strokeWidth = 18 * sx..strokeCap = StrokeCap.round);
-    canvas.drawPath(hw, Paint()..color = const Color(0xFFF8E6A6)..style = PaintingStyle.stroke..strokeWidth = 13 * sx..strokeCap = StrokeCap.round);
+    canvas.drawPath(hw, Paint()..color = const Color(0xFFDFC468)..style = PaintingStyle.stroke..strokeWidth = 18 * sx..strokeCap = StrokeCap.round);
+    canvas.drawPath(hw, Paint()..color = const Color(0xFFF2DD8F)..style = PaintingStyle.stroke..strokeWidth = 13 * sx..strokeCap = StrokeCap.round);
 
     // Route.
     if (route) {
@@ -129,7 +129,7 @@ class _MapPainter extends CustomPainter {
         ..cubicTo(150 * sx, 524 * sy, 120 * sx, 432 * sy, 200 * sx, 382 * sy)
         ..cubicTo(280 * sx, 332 * sy, 250 * sx, 212 * sy, 300 * sx, 150 * sy);
       canvas.drawPath(r, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 11 * sx..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
-      canvas.drawPath(r, Paint()..color = const Color(0xFF1573C9)..style = PaintingStyle.stroke..strokeWidth = 6.5 * sx..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
+      canvas.drawPath(r, Paint()..color = const Color(0xFF0D5FA8)..style = PaintingStyle.stroke..strokeWidth = 6.5 * sx..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
     }
   }
 

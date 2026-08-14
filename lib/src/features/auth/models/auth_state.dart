@@ -4,6 +4,7 @@ class AuthState {
   const AuthState({
     this.isLoading = false,
     this.token,
+    this.refreshToken,
     this.expiresAt,
     this.userId,
     this.fullName,
@@ -19,6 +20,10 @@ class AuthState {
 
   final bool isLoading;
   final String? token;
+
+  /// Long-lived credential used to renew [token] silently. Its presence is what
+  /// separates "expired, renew it" from "genuinely signed out".
+  final String? refreshToken;
 
   /// When the current token expires. Used to drop stale sessions on restore.
   final DateTime? expiresAt;
@@ -50,6 +55,7 @@ class AuthState {
     if (t == null || uid == null || exp == null) return null;
     return AuthSession(
       token: t,
+      refreshToken: refreshToken,
       expiresAt: exp,
       userId: uid,
       fullName: fullName,
@@ -63,6 +69,7 @@ class AuthState {
 
   factory AuthState.fromSession(AuthSession s) => AuthState(
         token: s.token,
+        refreshToken: s.refreshToken,
         expiresAt: s.expiresAt,
         userId: s.userId,
         fullName: s.fullName,
@@ -76,6 +83,7 @@ class AuthState {
   AuthState copyWith({
     bool? isLoading,
     String? token,
+    String? refreshToken,
     DateTime? expiresAt,
     String? userId,
     String? fullName,
@@ -93,6 +101,7 @@ class AuthState {
       AuthState(
         isLoading: isLoading ?? this.isLoading,
         token: token ?? this.token,
+        refreshToken: refreshToken ?? this.refreshToken,
         expiresAt: expiresAt ?? this.expiresAt,
         userId: userId ?? this.userId,
         fullName: fullName ?? this.fullName,

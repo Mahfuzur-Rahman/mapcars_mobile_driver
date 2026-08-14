@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../router/nav.dart';
 import '../theme/brand.dart';
 import '../theme/mc_icons.dart';
+import 'drawer_state.dart';
 
 export '../theme/brand.dart';
 export '../theme/mc_icons.dart';
+export 'drawer_state.dart';
 
 /// Text style helper (inherits Nunito from the theme's DefaultTextStyle).
 TextStyle tw(FontWeight w, double size, [Color color = Brand.ink, double? ls]) =>
@@ -44,6 +50,7 @@ class McField extends StatefulWidget {
     this.obscure = false,
     this.autofocus = false,
     this.onChanged,
+    this.suffix,
   });
   final String? icon;
   final String? placeholder;
@@ -60,6 +67,7 @@ class McField extends StatefulWidget {
   final bool obscure;
   final bool autofocus;
   final ValueChanged<String>? onChanged;
+  final Widget? suffix;
 
   @override
   State<McField> createState() => _McFieldState();
@@ -139,6 +147,7 @@ class _McFieldState extends State<McField> {
             ],
             if (widget.icon != null) ...[Ico(widget.icon!, size: 20, color: Brand.sub), const SizedBox(width: 10)],
             Expanded(child: inner),
+            if (widget.suffix != null) ...[const SizedBox(width: 8), widget.suffix!],
           ],
         ),
       ),
@@ -165,6 +174,8 @@ class McButton extends StatelessWidget {
       BtnKind.grad => Brand.grad,
       BtnKind.blue => null,
     };
+    // Glow tint follows the button's own colour.
+    final Color glow = kind == BtnKind.green ? Brand.green : Brand.blue;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -175,7 +186,7 @@ class McButton extends StatelessWidget {
           color: g == null ? Brand.blue : null,
           gradient: g,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Brand.blue.withValues(alpha: 0.28), blurRadius: 18, offset: const Offset(0, 8))],
+          boxShadow: [BoxShadow(color: glow.withValues(alpha: 0.28), blurRadius: 18, offset: const Offset(0, 8))],
         ),
         child: Row(
           mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
@@ -217,6 +228,41 @@ class McGhostButton extends StatelessWidget {
             children: [
               if (icon != null) ...[Ico(icon!, size: 20, color: Brand.ink), const SizedBox(width: 8)],
               Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: tw(FontWeight.w800, 16, Brand.ink))),
+            ],
+          ),
+        ),
+      );
+}
+
+/// Full-width outline button for destructive actions (e.g. logout).
+class McDangerButton extends StatelessWidget {
+  const McDangerButton(this.label, {super.key, this.icon, this.full = true, this.onTap, this.height = 54});
+  final String label;
+  final String? icon;
+  final bool full;
+  final VoidCallback? onTap;
+  final double height;
+
+  static const _red = Color(0xFFDC2626);
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: full ? double.infinity : null,
+          height: height,
+          padding: full ? null : const EdgeInsets.symmetric(horizontal: 18),
+          decoration: BoxDecoration(
+            color: _red.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _red.withValues(alpha: 0.35), width: 1.5),
+          ),
+          child: Row(
+            mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[Ico(icon!, size: 20, color: _red), const SizedBox(width: 8)],
+              Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: tw(FontWeight.w800, 16, _red))),
             ],
           ),
         ),
@@ -312,6 +358,72 @@ class SheetHandle extends StatelessWidget {
         height: 5,
         margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(color: Brand.line, borderRadius: BorderRadius.circular(99)),
+      );
+}
+
+/// Bottom sheet offering "take a selfie" vs "choose from gallery" — the shared
+/// entry point for any photo upload (profile picture, vehicle photos, docs).
+/// Returns null if the driver dismisses it without picking either.
+Future<ImageSource?> showPictureSourcePicker(BuildContext context) {
+  return showModalBottomSheet<ImageSource>(
+    context: context,
+    backgroundColor: Brand.paper,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) => Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SheetHandle(),
+          const McTitle('Add a photo', size: 20),
+          const SizedBox(height: 6),
+          Text('Take a selfie or choose one from your gallery',
+              style: tw(FontWeight.w600, 13.5, Brand.sub)),
+          const SizedBox(height: 16),
+          _PictureSourceTile(
+            icon: 'camera',
+            title: 'Take a selfie',
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+          const SizedBox(height: 10),
+          _PictureSourceTile(
+            icon: 'gallery',
+            title: 'Choose from gallery',
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _PictureSourceTile extends StatelessWidget {
+  const _PictureSourceTile({required this.icon, required this.title, required this.onTap});
+  final String icon;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Brand.fill.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Brand.line),
+          ),
+          child: Row(
+            children: [
+              Ico(icon, size: 20, color: Brand.sub),
+              const SizedBox(width: 12),
+              Text(title, style: tw(FontWeight.w800, 14.5, Brand.ink)),
+            ],
+          ),
+        ),
       );
 }
 
@@ -420,4 +532,286 @@ class McCircleButton extends StatelessWidget {
           child: Center(child: Ico(icon, size: 22, color: color)),
         ),
       );
+}
+
+/// Opens the slide-out menu drawer. Every screen gets one so the menu is
+/// reachable without first navigating back to Home.
+class McMenuButton extends ConsumerWidget {
+  const McMenuButton({super.key, this.color = Brand.ink});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) =>
+      McCircleButton('menu', color: color, onTap: () => openMenuDrawer(ref));
+}
+
+/// Navigation header containing Back, Home and Menu buttons.
+///
+/// [showMenu] defaults on. Turn it off for the pre-login onboarding funnel:
+/// the drawer's destinations and Log out assume a signed-in user, and on the
+/// mid-signup screens (profile setup, registration, documents) a session token
+/// already exists — so a menu there is a live escape hatch straight past
+/// onboarding into the app.
+class McNavHeader extends StatelessWidget {
+  const McNavHeader({
+    super.key,
+    this.title,
+    this.fallback = '/home',
+    this.onBack,
+    this.showHome = true,
+    this.showBack = true,
+    this.showMenu = true,
+    this.trailing,
+  });
+
+  final String? title;
+  final String fallback;
+  final VoidCallback? onBack;
+  final bool showHome;
+  final bool showBack;
+  final bool showMenu;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        if (showBack)
+          McCircleButton('back', onTap: onBack ?? () => backOr(context, fallback))
+        else
+          const SizedBox(width: 44),
+        if (title != null) ...[
+          const SizedBox(width: 12),
+          Expanded(
+            child: McTitle(
+              title!,
+              size: 20,
+              align: TextAlign.left,
+            ),
+          ),
+        ] else
+          const Spacer(),
+        if (showHome) ...[
+          const SizedBox(width: 8),
+          McCircleButton('home', onTap: () => context.go('/home')),
+        ],
+        if (showMenu) ...[
+          const SizedBox(width: 8),
+          const McMenuButton(),
+        ],
+        if (trailing != null) ...[
+          const SizedBox(width: 8),
+          trailing!,
+        ],
+      ],
+    );
+  }
+}
+
+/// Floating counterpart to [McNavHeader], for the full-screen map screens that
+/// have no in-flow header: Back pinned left, Home + Menu grouped right.
+///
+/// Drop it in a `Positioned(top: …, left: 16, right: 16)`.
+class McFloatingNav extends StatelessWidget {
+  const McFloatingNav({
+    super.key,
+    this.fallback = '/home',
+    this.onBack,
+    this.showBack = true,
+    this.showHome = true,
+    this.showMenu = true,
+  });
+
+  final String fallback;
+  final VoidCallback? onBack;
+  final bool showBack;
+  final bool showHome;
+  final bool showMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        if (showBack)
+          McCircleButton('back', onTap: onBack ?? () => backOr(context, fallback))
+        else
+          const SizedBox(width: 44),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showHome) McCircleButton('home', onTap: () => context.go('/home')),
+            if (showHome && showMenu) const SizedBox(width: 8),
+            if (showMenu) const McMenuButton(),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// "Continue with Google" — white pill, per Google's sign-in branding.
+///
+/// The mark is drawn by [_GoogleGPainter] so no image asset is needed; swap it
+/// for Google's official artwork before a public release.
+class McGoogleButton extends StatelessWidget {
+  const McGoogleButton({
+    super.key,
+    this.label = 'Continue with Google',
+    this.onTap,
+    this.loading = false,
+    this.height = 54,
+  });
+
+  final String label;
+  final VoidCallback? onTap;
+  final bool loading;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null && !loading;
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        behavior: HitTestBehavior.opaque,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.6,
+          child: Container(
+            width: double.infinity,
+            height: height,
+            decoration: BoxDecoration(
+              color: Brand.paper,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Brand.line, width: 1.5),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (loading)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.4, color: Brand.sub),
+                  )
+                else
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CustomPaint(painter: _GoogleGPainter()),
+                  ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    loading ? 'Signing in…' : label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: tw(FontWeight.w800, 15.5, Brand.ink),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The four-colour Google "G": one ring split into four arcs, plus the blue bar.
+class _GoogleGPainter extends CustomPainter {
+  const _GoogleGPainter();
+
+  static const _blue = Color(0xFF4285F4);
+  static const _green = Color(0xFF34A853);
+  static const _yellow = Color(0xFFFBBC05);
+  static const _red = Color(0xFFEA4335);
+
+  static const _deg = 3.1415926535897932 / 180;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.shortestSide;
+    final stroke = s * 0.24;
+    final rect = Rect.fromCircle(
+      center: Offset(s / 2, s / 2),
+      radius: (s - stroke) / 2,
+    );
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke;
+
+    void arc(Color c, double startDeg, double sweepDeg) => canvas.drawArc(
+        rect, startDeg * _deg, sweepDeg * _deg, false, paint..color = c);
+
+    // Clockwise from 3 o'clock; the four sweeps add up to a full ring.
+    arc(_blue, -30, 55);
+    arc(_green, 25, 105);
+    arc(_yellow, 130, 85);
+    arc(_red, 215, 115);
+
+    // The bar joining the centre to the blue arc.
+    canvas.drawRect(
+      Rect.fromLTRB(s * 0.5, s / 2 - stroke / 2, s - stroke, s / 2 + stroke / 2),
+      Paint()..color = _blue,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GoogleGPainter oldDelegate) => false;
+}
+
+/// Hairline rule with a centred caption — separates a screen's primary action
+/// from an alternative one (e.g. "New to Mapcars?" above the Sign up button).
+class McDividerLabel extends StatelessWidget {
+  const McDividerLabel(this.label, {super.key});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(child: Divider(color: Brand.line, height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(label, style: tw(FontWeight.w700, 13, Brand.sub)),
+        ),
+        const Expanded(child: Divider(color: Brand.line, height: 1)),
+      ],
+    );
+  }
+}
+
+/// Red alert banner for validation / auth error messages.
+class McErrorBanner extends StatelessWidget {
+  const McErrorBanner(this.message, {super.key});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Brand.errorBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Brand.errorBorder),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 20, color: Brand.errorText),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: tw(FontWeight.w700, 13.5, Brand.errorText),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -38,7 +38,7 @@ class UnderReviewScreen extends StatelessWidget {
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [Brand.blue, Color(0xFF2BB6C7)],
+                            colors: [Brand.blue, Color(0xFF12939F)],
                           ),
                           shape: BoxShape.circle,
                         ),

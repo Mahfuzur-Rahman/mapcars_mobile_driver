@@ -1,7 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/mc.dart';
+import '../../drive/demo_trip.dart';
+
+/// Routes that render a real trip-flow screen and need a [Trip] to show their
+/// real map/data instead of falling back to static walkthrough art.
+const _routesNeedingDemoTrip = {
+  '/request',
+  '/nav-pickup',
+  '/arrived',
+  '/driving',
+  '/trip-complete',
+  '/chat',
+};
 
 /// Prototype helper — jump to any screen. Reached from the splash screen.
 class ScreenIndexScreen extends StatelessWidget {
@@ -21,6 +34,7 @@ class ScreenIndexScreen extends StatelessWidget {
       ['Incoming request', '/request'],
       ['Navigate to pickup', '/nav-pickup'],
       ['Arrived / confirm', '/arrived'],
+      ['Chat', '/chat'],
       ['Trip in progress', '/driving'],
       ['Trip complete', '/trip-complete'],
     ],
@@ -42,6 +56,16 @@ class ScreenIndexScreen extends StatelessWidget {
         title: const Text('All screens · Driver'),
         titleTextStyle: tw(FontWeight.w900, 18, Brand.ink),
         iconTheme: const IconThemeData(color: Brand.ink),
+        actions: [
+          Consumer(
+            builder: (context, ref, _) => IconButton(
+              icon: const Icon(Icons.menu, color: Brand.ink),
+              tooltip: 'Open menu',
+              onPressed: () => openMenuDrawer(ref),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
@@ -58,7 +82,12 @@ class ScreenIndexScreen extends StatelessWidget {
                 children: [
                   for (int i = 0; i < entry.value.length; i++)
                     InkWell(
-                      onTap: () => context.push(entry.value[i][1]),
+                      onTap: () => context.push(
+                        entry.value[i][1],
+                        extra: _routesNeedingDemoTrip.contains(entry.value[i][1])
+                            ? demoTrip
+                            : null,
+                      ),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(

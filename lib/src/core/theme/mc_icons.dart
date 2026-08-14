@@ -30,6 +30,9 @@ const Map<String, IconData> _kIcons = {
   'bell': Icons.notifications_outlined,
   'receipt': Icons.receipt_long_outlined,
   'msg': Icons.chat_bubble_outline,
+  'mail': Icons.mail_outline,
+  'lock': Icons.lock_outline,
+  'send': Icons.send,
   'check': Icons.check,
   'cog': Icons.settings_outlined,
   'edit': Icons.edit_outlined,
@@ -37,6 +40,7 @@ const Map<String, IconData> _kIcons = {
   'power': Icons.power_settings_new,
   'doc': Icons.description_outlined,
   'camera': Icons.photo_camera_outlined,
+  'gallery': Icons.photo_library_outlined,
   'upload': Icons.file_upload_outlined,
   'bank': Icons.account_balance_outlined,
   'chart': Icons.bar_chart,
@@ -46,6 +50,7 @@ const Map<String, IconData> _kIcons = {
   'wallet': Icons.account_balance_wallet_outlined,
   'trend': Icons.trending_up,
   'globe': Icons.language,
+  'logout': Icons.logout,
 };
 
 IconData icoData(String name) => _kIcons[name] ?? Icons.circle_outlined;

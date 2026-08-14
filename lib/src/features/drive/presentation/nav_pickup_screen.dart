@@ -1,40 +1,135 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/network/api_exception.dart';
 import '../../../core/widgets/mc.dart';
 import '../../../core/widgets/map_background.dart';
+import '../providers/trip_realtime_controller.dart';
+import '../services/nav_handoff.dart';
+import '../services/trip_service.dart';
+import 'widgets/live_route_map.dart';
 
-class NavPickupScreen extends StatelessWidget {
-  const NavPickupScreen({super.key});
+/// Leg 1 of the active trip: driving to the rider. Shows the real route to the
+/// pickup with a live ETA, hands turn-by-turn off to the driver's navigation app
+/// of choice, and marks arrival when they get there.
+class NavPickupScreen extends ConsumerStatefulWidget {
+  const NavPickupScreen({super.key, this.trip});
+
+  /// The accepted trip, when the caller has one — null falls back to the
+  /// static walkthrough content below (dev screen-stepper).
+  final Trip? trip;
+
+  @override
+  ConsumerState<NavPickupScreen> createState() => _NavPickupScreenState();
+}
+
+class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
+  bool _busy = false;
+  RouteProgress? _progress;
+
+  /// Marks arrival at the pickup. This used to be what the "Navigate" button
+  /// did, which meant a driver who only wanted directions was reported as
+  /// already at the kerb — arrival is now its own explicit action.
+  Future<void> _confirmArrival() async {
+    if (_busy) return;
+    final trip = widget.trip;
+    if (trip == null) {
+      context.go('/arrived');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final updated = await ref.read(tripServiceProvider).arrive(trip.id);
+      if (!mounted) return;
+      context.go('/arrived', extra: updated);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(e is ApiException
+              ? e.message
+              : "Couldn't confirm arrival. Please try again."),
+        ));
+    }
+  }
+
+  Future<void> _navigate() async {
+    final trip = widget.trip;
+    if (trip == null) return;
+    await NavHandoff.start(
+      context,
+      lat: trip.pickupLat,
+      lng: trip.pickupLng,
+      label: trip.pickupAddress,
+    );
+  }
+
+  void _callRider() {
+    // The API deliberately doesn't expose the rider's number (see TripRiderInfo)
+    // — until a masked-call service is wired up, in-app chat is the channel.
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(
+        content: Text('Use Message to reach your rider.'),
+      ));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final trip = widget.trip;
+    final progress = _progress;
+
+    ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
+      if (trip != null && next.cancelledTrip?.id == trip.id) {
+        showTripCancelledDialog(context, ref, next.cancelledTrip!);
+      }
+    });
+
     return Scaffold(
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: MapBackground(
-              route: true,
-              markers: [
-                MapMarker(0.30, 0.80, CarMark(color: Brand.blue, icon: 'nav')),
-                MapMarker(0.72, 0.26, MapPin(dest: false)),
-              ],
-            ),
+          Positioned.fill(
+            child: trip == null
+                // Dev screen-stepper: no trip, so nothing real to route to.
+                ? const MapBackground(
+                    route: true,
+                    markers: [
+                      MapMarker(0.30, 0.80, CarMark(color: Brand.blue, icon: 'nav')),
+                      MapMarker(0.72, 0.26, MapPin(dest: false)),
+                    ],
+                  )
+                : LiveRouteMap(
+                    destination: LatLng(trip.pickupLat, trip.pickupLng),
+                    destinationLabel: trip.pickupAddress,
+                    isPickup: true,
+                    onProgress: (p) => setState(() => _progress = p),
+                  ),
           ),
-          const Positioned(
+          Positioned(
             top: 50,
             left: 14,
             right: 14,
-            child: _TurnBanner(
-              dist: '300 m',
-              road: "Right onto King's Rd",
-              kind: 'green',
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _EtaBanner(
+                  eta: progress?.etaLabel ?? '—',
+                  distance: progress?.distanceLabel ?? 'Finding route…',
+                  caption: 'to pickup',
+                  colour: Brand.green,
+                ),
+                const SizedBox(height: 10),
+                const Align(alignment: Alignment.centerRight, child: McMenuButton()),
+              ],
             ),
           ),
           Align(
             alignment: Alignment.bottomCenter,
             child: McSheet(
-              height: 236,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -51,30 +146,45 @@ class NavPickupScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text('Pickup · Sarah M.',
-                            style: tw(FontWeight.w900, 15, Brand.ink)),
+                        child: Text(
+                          trip?.rider == null
+                              ? 'Pickup · Sarah M.'
+                              : 'Pickup · ${trip!.rider!.name}',
+                          style: tw(FontWeight.w900, 15, Brand.ink),
+                        ),
                       ),
-                      Text('4 min', style: tw(FontWeight.w800, 14, Brand.green)),
+                      if (progress != null)
+                        Text(progress.etaLabel,
+                            style: tw(FontWeight.w800, 14, Brand.green)),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text('40 Canary Wharf, London E14',
+                  const SizedBox(height: 10),
+                  Text(trip?.pickupAddress ?? '40 Canary Wharf, London E14',
                       style: tw(FontWeight.w700, 13.5, Brand.sub)),
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      const _SquareButton(icon: 'phone'),
+                      _SquareButton(icon: 'phone', onTap: _callRider),
                       const SizedBox(width: 10),
-                      const _SquareButton(icon: 'msg'),
+                      _SquareButton(
+                          icon: 'msg', onTap: () => context.push('/chat', extra: trip)),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: McButton(
+                        child: McGhostButton(
                           'Navigate',
                           icon: 'nav',
-                          onTap: () => context.go('/arrived'),
+                          height: 50,
+                          onTap: trip == null ? null : _navigate,
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+                  McButton(
+                    _busy ? 'Confirming…' : "I've arrived",
+                    icon: 'check',
+                    kind: BtnKind.green,
+                    onTap: _busy ? null : _confirmArrival,
                   ),
                 ],
               ),
@@ -87,39 +197,52 @@ class NavPickupScreen extends StatelessWidget {
 }
 
 class _SquareButton extends StatelessWidget {
-  const _SquareButton({required this.icon});
+  const _SquareButton({required this.icon, this.onTap});
   final String icon;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          color: Brand.fill,
-          borderRadius: BorderRadius.circular(13),
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            color: Brand.fill,
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Center(child: Ico(icon, size: 22, color: Brand.ink)),
         ),
-        child: Center(child: Ico(icon, size: 22, color: Brand.ink)),
       );
 }
 
-class _TurnBanner extends StatelessWidget {
-  const _TurnBanner(
-      {required this.dist, required this.road, this.kind = 'green'});
-  final String dist;
-  final String road;
-  final String kind;
+/// Live "how far, how long" banner. Replaces the old fake turn-by-turn banner —
+/// the actual manoeuvre instructions come from the navigation app the driver
+/// hands off to, so promising them here would have been a lie either way.
+class _EtaBanner extends StatelessWidget {
+  const _EtaBanner({
+    required this.eta,
+    required this.distance,
+    required this.caption,
+    required this.colour,
+  });
+
+  final String eta;
+  final String distance;
+  final String caption;
+  final Color colour;
 
   @override
   Widget build(BuildContext context) {
-    final bg = kind == 'green' ? Brand.green : Brand.blue;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: bg,
+        color: colour,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x4D283443),
+            color: Color(0x5216202E),
             blurRadius: 22,
             offset: Offset(0, 8),
           ),
@@ -127,20 +250,22 @@ class _TurnBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Ico('turn', size: 34, color: Colors.white),
+          const Ico('nav', size: 30, color: Colors.white),
           const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(dist,
-                  style: tw(FontWeight.w900, 22, Colors.white).copyWith(
-                      height: 1)),
-              const SizedBox(height: 3),
-              Text(road,
-                  style: tw(FontWeight.w700, 13.5,
-                      Colors.white.withValues(alpha: 0.9))),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(eta,
+                    style: tw(FontWeight.w900, 22, Colors.white)
+                        .copyWith(height: 1)),
+                const SizedBox(height: 3),
+                Text('$distance · $caption',
+                    style: tw(FontWeight.w700, 13.5,
+                        Colors.white.withValues(alpha: 0.9))),
+              ],
+            ),
           ),
         ],
       ),

@@ -1,4 +1,4 @@
-package com.mapcars.mapcars_driver
+package com.mapcars.mapcars.driver
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -66,21 +66,17 @@ class _IntroScreenState extends State<IntroScreen> {
               _dots(),
               const SizedBox(height: 20),
               if (_page < 2)
-                McButton('Next', icon: 'chevR', kind: BtnKind.green, onTap: _next)
+                McButton('Next', icon: 'chevR', onTap: _next)
               else
                 McButton('Start driving', icon: 'wheel', kind: BtnKind.grad, onTap: () => context.go('/verify')),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: () => context.go('/verify'),
-                child: RichText(
-                  text: TextSpan(
-                    style: tw(FontWeight.w700, 14, Brand.sub),
-                    children: [
-                      const TextSpan(text: 'Already approved? '),
-                      TextSpan(text: 'Log in', style: tw(FontWeight.w700, 14, Brand.blue)),
-                    ],
-                  ),
-                ),
+              const SizedBox(height: 14),
+              const McDividerLabel('Already have an account?'),
+              const SizedBox(height: 12),
+              McButton(
+                'Sign in',
+                icon: 'lock',
+                kind: BtnKind.green,
+                onTap: () => context.go('/email-login'),
               ),
             ],
           ),
@@ -95,7 +91,7 @@ class _IntroScreenState extends State<IntroScreen> {
       children: [
         Row(
           children: [
-            Image.asset('assets/images/logo-full.png', height: 26),
+            Image.asset('assets/images/mapcars_logo1.png', height: 26),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -207,7 +203,7 @@ class _IntroScreenState extends State<IntroScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFEAF6FB), Color(0xFFECF8E7)],
+          colors: [Color(0xFFD3E9F5), Color(0xFFD9EED0)],
         ),
       ),
       child: Stack(
@@ -256,7 +252,7 @@ class _IntroScreenState extends State<IntroScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFEAF6FB), Color(0xFFECF8E7)],
+          colors: [Color(0xFFD3E9F5), Color(0xFFD9EED0)],
         ),
       ),
       child: Center(
@@ -267,7 +263,7 @@ class _IntroScreenState extends State<IntroScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: Brand.line),
-            boxShadow: const [BoxShadow(color: Color(0x1F283443), blurRadius: 30, offset: Offset(0, 14))],
+            boxShadow: const [BoxShadow(color: Color(0x2916202E), blurRadius: 30, offset: Offset(0, 14))],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

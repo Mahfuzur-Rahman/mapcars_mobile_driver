@@ -1,8 +1,29 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Current-location on the map. COARSE is a fallback when the user grants
+         approximate-only location on Android 12+. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Push notifications (FCM) — required for the runtime prompt on Android 13+. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- While the driver is online, location reporting runs in a foreground
+         service (ongoing notification) so their car keeps moving on riders'
+         maps with the screen off or the app in the background. Without these,
+         Android stops delivering fixes seconds after backgrounding and the
+         driver drops out of the live pool. FOREGROUND_SERVICE_LOCATION is
+         mandatory from Android 14; WAKE_LOCK backs enableWakeLock. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
-        android:label="mapcars_driver"
+        android:label="Mapcars Driver"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Google Maps SDK for Android key. Value comes from
+             android/local.properties (MAPS_API_KEY), injected by build.gradle.kts
+             so the key is never committed. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

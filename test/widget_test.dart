@@ -31,6 +31,35 @@ void main() {
       expect(restored.isEmailVerified, isFalse);
     });
 
+    test('carries the refresh token through a round-trip', () {
+      // The refresh token is what keeps a driver signed in past the access
+      // token's one-hour life. Losing it in storage would silently restore the
+      // old "signed out mid-shift" behaviour.
+      final session = AuthSession(
+        token: 'jwt-123',
+        refreshToken: 'refresh-abc',
+        expiresAt: DateTime.parse('2030-01-01T00:00:00.000'),
+        userId: 'driver-1',
+        isProfileComplete: false,
+        isEmailVerified: false,
+        isPhoneVerified: true,
+      );
+
+      expect(AuthSession.decode(session.encode()).refreshToken, 'refresh-abc');
+    });
+
+    test('tolerates a session persisted before refresh tokens existed', () {
+      // Sessions already on disk have no refreshToken key. Decoding must not
+      // throw — it should yield null and let the normal expiry path run.
+      const legacy = '{"token":"t","expiresAt":"2030-01-01T00:00:00.000",'
+          '"userId":"d","isProfileComplete":false,"isEmailVerified":false,'
+          '"isPhoneVerified":true}';
+
+      final decoded = AuthSession.decode(legacy);
+      expect(decoded.refreshToken, isNull);
+      expect(decoded.token, 't');
+    });
+
     test('reports expiry against the wall clock', () {
       final expired = AuthSession(
         token: 't',
