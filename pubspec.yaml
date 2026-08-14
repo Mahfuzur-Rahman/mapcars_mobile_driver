@@ -1,7 +1,7 @@
 name: mapcars_driver
 description: "Mapcars — UK ride-hailing driver mobile app (Flutter)."
 publish_to: 'none'
-version: 0.1.0+2
+version: 0.1.0+3
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
