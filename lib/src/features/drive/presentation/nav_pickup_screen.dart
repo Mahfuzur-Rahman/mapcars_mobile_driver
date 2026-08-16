@@ -5,7 +5,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../../core/widgets/mc.dart';
-import '../../../core/widgets/map_background.dart';
 import '../providers/trip_realtime_controller.dart';
 import '../services/nav_handoff.dart';
 import '../services/trip_service.dart';
@@ -15,11 +14,12 @@ import 'widgets/live_route_map.dart';
 /// pickup with a live ETA, hands turn-by-turn off to the driver's navigation app
 /// of choice, and marks arrival when they get there.
 class NavPickupScreen extends ConsumerStatefulWidget {
-  const NavPickupScreen({super.key, this.trip});
+  const NavPickupScreen({super.key, required this.trip});
 
-  /// The accepted trip, when the caller has one — null falls back to the
-  /// static walkthrough content below (dev screen-stepper).
-  final Trip? trip;
+  /// The accepted trip. Always a real one — `TripGate` either passes the trip
+  /// the driver arrived with or resolves their active job from the API before
+  /// this screen builds.
+  final Trip trip;
 
   @override
   ConsumerState<NavPickupScreen> createState() => _NavPickupScreenState();
@@ -35,10 +35,6 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
   Future<void> _confirmArrival() async {
     if (_busy) return;
     final trip = widget.trip;
-    if (trip == null) {
-      context.go('/arrived');
-      return;
-    }
     setState(() => _busy = true);
     try {
       final updated = await ref.read(tripServiceProvider).arrive(trip.id);
@@ -59,7 +55,6 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
 
   Future<void> _navigate() async {
     final trip = widget.trip;
-    if (trip == null) return;
     await NavHandoff.start(
       context,
       lat: trip.pickupLat,
@@ -84,7 +79,7 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
     final progress = _progress;
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
-      if (trip != null && next.cancelledTrip?.id == trip.id) {
+      if (next.cancelledTrip?.id == trip.id) {
         showTripCancelledDialog(context, ref, next.cancelledTrip!);
       }
     });
@@ -93,21 +88,12 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: trip == null
-                // Dev screen-stepper: no trip, so nothing real to route to.
-                ? const MapBackground(
-                    route: true,
-                    markers: [
-                      MapMarker(0.30, 0.80, CarMark(color: Brand.blue, icon: 'nav')),
-                      MapMarker(0.72, 0.26, MapPin(dest: false)),
-                    ],
-                  )
-                : LiveRouteMap(
-                    destination: LatLng(trip.pickupLat, trip.pickupLng),
-                    destinationLabel: trip.pickupAddress,
-                    isPickup: true,
-                    onProgress: (p) => setState(() => _progress = p),
-                  ),
+            child: LiveRouteMap(
+              destination: LatLng(trip.pickupLat, trip.pickupLng),
+              destinationLabel: trip.pickupAddress,
+              isPickup: true,
+              onProgress: (p) => setState(() => _progress = p),
+            ),
           ),
           Positioned(
             top: 50,
@@ -147,9 +133,9 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          trip?.rider == null
-                              ? 'Pickup · Sarah M.'
-                              : 'Pickup · ${trip!.rider!.name}',
+                          'Pickup · ${trip.rider?.name ?? 'your rider'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: tw(FontWeight.w900, 15, Brand.ink),
                         ),
                       ),
@@ -159,7 +145,7 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Text(trip?.pickupAddress ?? '40 Canary Wharf, London E14',
+                  Text(trip.pickupAddress,
                       style: tw(FontWeight.w700, 13.5, Brand.sub)),
                   const SizedBox(height: 14),
                   Row(
@@ -174,7 +160,7 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
                           'Navigate',
                           icon: 'nav',
                           height: 50,
-                          onTap: trip == null ? null : _navigate,
+                          onTap: _navigate,
                         ),
                       ),
                     ],

@@ -3,20 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/mc.dart';
-import '../../drive/demo_trip.dart';
-
-/// Routes that render a real trip-flow screen and need a [Trip] to show their
-/// real map/data instead of falling back to static walkthrough art.
-const _routesNeedingDemoTrip = {
-  '/request',
-  '/nav-pickup',
-  '/arrived',
-  '/driving',
-  '/trip-complete',
-  '/chat',
-};
 
 /// Prototype helper — jump to any screen. Reached from the splash screen.
+///
+/// Trip screens are entered with no `extra`: `TripGate` resolves the driver's
+/// own active (or last completed) trip from the API, so nothing here can show
+/// invented trip data.
 class ScreenIndexScreen extends StatelessWidget {
   const ScreenIndexScreen({super.key});
 
@@ -82,12 +74,7 @@ class ScreenIndexScreen extends StatelessWidget {
                 children: [
                   for (int i = 0; i < entry.value.length; i++)
                     InkWell(
-                      onTap: () => context.push(
-                        entry.value[i][1],
-                        extra: _routesNeedingDemoTrip.contains(entry.value[i][1])
-                            ? demoTrip
-                            : null,
-                      ),
+                      onTap: () => context.push(entry.value[i][1]),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(

@@ -7,7 +7,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../../core/widgets/mc.dart';
-import '../../../core/widgets/map_background.dart';
 import '../providers/driver_location_reporting_controller.dart';
 import '../providers/trip_realtime_controller.dart';
 import '../services/nav_handoff.dart';
@@ -17,11 +16,11 @@ import 'widgets/live_route_map.dart';
 /// Leg 2: rider on board, driving to the destination. Live route, live ETA, and
 /// the cash to collect on arrival.
 class DrivingScreen extends ConsumerStatefulWidget {
-  const DrivingScreen({super.key, this.trip});
+  const DrivingScreen({super.key, required this.trip});
 
-  /// The in-progress trip, when the caller has one — null falls back to the
-  /// static walkthrough content below (dev screen-stepper).
-  final Trip? trip;
+  /// The in-progress trip — always a real one, supplied or resolved by
+  /// `TripGate`.
+  final Trip trip;
 
   @override
   ConsumerState<DrivingScreen> createState() => _DrivingScreenState();
@@ -34,10 +33,6 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
   Future<void> _complete() async {
     if (_busy) return;
     final trip = widget.trip;
-    if (trip == null) {
-      context.go('/trip-complete');
-      return;
-    }
     setState(() => _busy = true);
     try {
       final updated = await ref.read(tripServiceProvider).complete(trip.id);
@@ -60,7 +55,6 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
 
   Future<void> _navigate() async {
     final trip = widget.trip;
-    if (trip == null) return;
     await NavHandoff.start(
       context,
       lat: trip.dropoffLat,
@@ -73,11 +67,11 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
   Widget build(BuildContext context) {
     final trip = widget.trip;
     final progress = _progress;
-    final fare = trip?.fareAmount;
-    final showCash = trip?.isCash ?? false;
+    final fare = trip.fareAmount;
+    final showCash = trip.isCash;
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
-      if (trip != null && next.cancelledTrip?.id == trip.id) {
+      if (next.cancelledTrip?.id == trip.id) {
         showTripCancelledDialog(context, ref, next.cancelledTrip!);
       }
     });
@@ -86,19 +80,11 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: trip == null
-                ? const MapBackground(
-                    route: true,
-                    markers: [
-                      MapMarker(0.42, 0.60, CarMark(color: Brand.blue, icon: 'nav')),
-                      MapMarker(0.72, 0.26, MapPin(dest: true)),
-                    ],
-                  )
-                : LiveRouteMap(
-                    destination: LatLng(trip.dropoffLat, trip.dropoffLng),
-                    destinationLabel: trip.dropoffAddress,
-                    onProgress: (p) => setState(() => _progress = p),
-                  ),
+            child: LiveRouteMap(
+              destination: LatLng(trip.dropoffLat, trip.dropoffLng),
+              destinationLabel: trip.dropoffAddress,
+              onProgress: (p) => setState(() => _progress = p),
+            ),
           ),
           Positioned(
             top: 50,
@@ -110,7 +96,7 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
                 _EtaBanner(
                   eta: progress?.etaLabel ?? '—',
                   distance: progress?.distanceLabel ?? 'Finding route…',
-                  onNavigate: trip == null ? null : _navigate,
+                  onNavigate: _navigate,
                 ),
                 const SizedBox(height: 10),
                 const Align(
@@ -140,7 +126,7 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                            trip?.dropoffAddress ?? 'Tower Bridge, SE1',
+                            trip.dropoffAddress,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: tw(FontWeight.w900, 15, Brand.ink)),
@@ -169,7 +155,7 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
                   ),
                   const SizedBox(height: 12),
                   if (showCash) ...[
-                    _CashCollectBanner(amount: trip!.cashDue),
+                    _CashCollectBanner(amount: trip.cashDue),
                     const SizedBox(height: 12),
                   ],
                   Row(
@@ -186,9 +172,8 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
                           sub: 'remaining'),
                       const SizedBox(width: 10),
                       _StatCard(
-                          value: fare != null
-                              ? '£${fare.toStringAsFixed(2)}'
-                              : '£11.50',
+                          value:
+                              fare != null ? '£${fare.toStringAsFixed(2)}' : '—',
                           sub: 'fare',
                           valueColor: Brand.green),
                     ],

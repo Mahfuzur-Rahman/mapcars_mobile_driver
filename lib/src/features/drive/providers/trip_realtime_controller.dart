@@ -118,13 +118,6 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
     }
   }
 
-  /// Dev-only: seeds a fake conversation directly into state, bypassing the
-  /// API — used by the "Screens" walkthrough preview, which has no real
-  /// trip/attach() behind `demoTrip` for [fetchMessages] to call.
-  void seedDemoMessages(List<ChatMessage> messages) {
-    if (mounted) state = state.copyWith(chatMessages: messages);
-  }
-
   /// Sends a message and appends the server's response (with its real ID)
   /// to state. The realtime push will also arrive, but [_onMessageReceived]
   /// deduplicates by ID so there's no double.

@@ -165,46 +165,107 @@ class _ProfileVehicleScreenState extends ConsumerState<ProfileVehicleScreen> {
                   ),
                 )
               else
-                GestureDetector(
-                  onTap: _editVehicle,
-                  child: McCard(
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Brand.fill,
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          child: const Center(child: Ico('car', size: 28, color: Brand.blue)),
+                Column(
+                  children: [
+                    GestureDetector(
+                      onTap: _editVehicle,
+                      child: McCard(
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: Brand.fill,
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: const Center(child: Ico('car', size: 28, color: Brand.blue)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '${_vehicle!.make} ${_vehicle!.model}',
+                                          style: tw(FontWeight.w900, 16),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Brand.blue.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(5),
+                                        ),
+                                        child: Text(
+                                          _vehicle!.tier.toUpperCase(),
+                                          style: tw(FontWeight.w800, 10, Brand.blue),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text('${_vehicle!.colour} · ${_vehicle!.year}',
+                                      style: tw(FontWeight.w600, 12.5, Brand.sub)),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Brand.fill,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(_vehicle!.registrationNumber,
+                                  style: tw(FontWeight.w900, 14, Brand.ink, 0.5)),
+                            ),
+                            const SizedBox(width: 8),
+                            const Ico('chevR', size: 16, color: Brand.sub),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('${_vehicle!.make} ${_vehicle!.model}',
-                                  style: tw(FontWeight.w900, 16)),
-                              Text('${_vehicle!.colour} · ${_vehicle!.year}',
-                                  style: tw(FontWeight.w600, 12.5, Brand.sub)),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Brand.fill,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(_vehicle!.registrationNumber,
-                              style: tw(FontWeight.w900, 14, Brand.ink, 0.5)),
-                        ),
-                        const SizedBox(width: 8),
-                        const Ico('chevR', size: 16, color: Brand.sub),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: () async {
+                        await context.push('/profile/tier');
+                        _load();
+                      },
+                      child: McCard(
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: Brand.blue.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Center(child: Ico('bolt', size: 20, color: Brand.blue)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Vehicle Tier & Appeal',
+                                      style: tw(FontWeight.w800, 14, Brand.ink)),
+                                  Text(
+                                    'Current: ${_vehicle!.tier.toUpperCase()} · Appeal for tier change',
+                                    style: tw(FontWeight.w600, 12, Brand.sub),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Ico('chevR', size: 16, color: Brand.sub),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               const SizedBox(height: 18),
               Text('DOCUMENTS', style: tw(FontWeight.w800, 12, Brand.sub, 0.5)),

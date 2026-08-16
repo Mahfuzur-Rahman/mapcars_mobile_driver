@@ -1,19 +1,72 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/widgets/mc.dart';
+import '../../auth/providers/auth_notifier.dart';
+import '../services/driver_documents_service.dart';
 
-class UnderReviewScreen extends StatelessWidget {
+class UnderReviewScreen extends ConsumerStatefulWidget {
   const UnderReviewScreen({super.key});
 
   @override
+  ConsumerState<UnderReviewScreen> createState() => _UnderReviewScreenState();
+}
+
+class _UnderReviewScreenState extends ConsumerState<UnderReviewScreen> {
+  List<DriverDocument>? _docs;
+  bool _loading = true;
+
+  static const _requiredSpecs = [
+    ('PhvLicence', 'PHV driver licence'),
+    ('VehicleInsurance', 'Private hire insurance'),
+    ('VehicleRegistration', 'Vehicle V5C (Logbook)'),
+    ('DbsCheck', 'Enhanced DBS check'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDocs();
+  }
+
+  Future<void> _loadDocs() async {
+    try {
+      final list = await ref.read(driverDocumentsServiceProvider).list();
+      if (!mounted) return;
+      setState(() {
+        _docs = list;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _contactSupport() async {
+    final uri = Uri.parse('https://wa.me/447389077004');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    const items = [
-      ['Identity verified', true],
-      ['PHV licence checked', true],
-      ['Insurance review', false],
-      ['Background check', false],
-    ];
+    final auth = ref.watch(authNotifierProvider);
+    final fullName = auth.fullName?.trim();
+    final firstName = fullName != null && fullName.isNotEmpty
+        ? fullName.split(' ').first
+        : null;
+
+    final greeting = firstName != null
+        ? "Thanks $firstName! We're checking your documents. This usually takes 24–48 hours."
+        : "Thanks! We're checking your documents. This usually takes 24–48 hours.";
+
+    final docMap = <String, DriverDocument>{};
+    for (final d in _docs ?? const <DriverDocument>[]) {
+      docMap.putIfAbsent(d.type, () => d);
+    }
+
     return Scaffold(
       backgroundColor: Brand.bg,
       body: SafeArea(
@@ -50,9 +103,9 @@ class UnderReviewScreen extends StatelessWidget {
                   const McTitle('Application under\nreview', size: 24, align: TextAlign.center),
                   const SizedBox(height: 14),
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 280),
+                    constraints: const BoxConstraints(maxWidth: 290),
                     child: Text(
-                      "Thanks James! We're checking your documents. This usually takes 24–48 hours.",
+                      greeting,
                       textAlign: TextAlign.center,
                       style: tw(FontWeight.w600, 15, Brand.sub),
                     ),
@@ -62,44 +115,106 @@ class UnderReviewScreen extends StatelessWidget {
               const SizedBox(height: 26),
               McCard(
                 padding: 16,
-                child: Column(
-                  children: List.generate(items.length, (i) {
-                    final ok = items[i][1] as bool;
-                    return Container(
-                      padding: const EdgeInsets.symmetric(vertical: 9),
-                      decoration: BoxDecoration(
-                        border: i < items.length - 1
-                            ? const Border(bottom: BorderSide(color: Brand.fill))
-                            : null,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 24,
-                            height: 24,
+                child: _loading
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+                      )
+                    : Column(
+                        children: List.generate(_requiredSpecs.length, (i) {
+                          final (type, title) = _requiredSpecs[i];
+                          final doc = docMap[type];
+                          final status = doc?.reviewStatus;
+                          final isApproved = status == 'Approved';
+                          final isRejected = status == 'Rejected';
+                          final isPending = status == 'Pending';
+
+                          final (statusLabel, statusColor) = switch (status) {
+                            'Approved' => ('Approved', Brand.green),
+                            'Rejected' => ('Action needed', Colors.red),
+                            'Pending' => ('Under review', Brand.blue),
+                            _ => ('Required', Brand.faint),
+                          };
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(vertical: 9),
                             decoration: BoxDecoration(
-                              color: ok ? Brand.green : Brand.fill,
-                              shape: BoxShape.circle,
-                              border: ok ? null : Border.all(color: Brand.line, width: 2),
+                              border: i < _requiredSpecs.length - 1
+                                  ? const Border(bottom: BorderSide(color: Brand.fill))
+                                  : null,
                             ),
-                            child: ok ? const Center(child: Ico('check', size: 14, color: Colors.white)) : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(items[i][0] as String, style: tw(FontWeight.w700, 14.5, ok ? Brand.ink : Brand.sub)),
-                          if (!ok) ...[
-                            const Spacer(),
-                            Text('In progress', style: tw(FontWeight.w700, 12, Brand.faint)),
-                          ],
-                        ],
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: isApproved
+                                        ? Brand.green
+                                        : isRejected
+                                            ? Colors.red.withValues(alpha: 0.15)
+                                            : isPending
+                                                ? Brand.blue.withValues(alpha: 0.15)
+                                                : Brand.fill,
+                                    shape: BoxShape.circle,
+                                    border: isApproved || isRejected || isPending
+                                        ? null
+                                        : Border.all(color: Brand.line, width: 2),
+                                  ),
+                                  child: isApproved
+                                      ? const Center(
+                                          child: Ico('check', size: 14, color: Colors.white))
+                                      : isRejected
+                                          ? const Center(
+                                              child: Ico('x', size: 12, color: Colors.red))
+                                          : isPending
+                                              ? const Center(
+                                                  child: Ico('clock', size: 12, color: Brand.blue))
+                                              : null,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    title,
+                                    style: tw(
+                                      FontWeight.w700,
+                                      14.5,
+                                      isApproved ? Brand.ink : Brand.sub,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  statusLabel,
+                                  style: tw(FontWeight.w800, 12, statusColor),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
                       ),
-                    );
-                  }),
-                ),
               ),
               const Spacer(),
-              const McGhostButton('Contact support', icon: 'msg'),
+              Row(
+                children: [
+                  Expanded(
+                    child: McGhostButton(
+                      'My documents',
+                      icon: 'doc',
+                      onTap: () => context.push('/documents'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: McGhostButton(
+                      'Support',
+                      icon: 'msg',
+                      onTap: _contactSupport,
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
-              McButton('Continue to app', kind: BtnKind.grad, onTap: () => context.go('/home')),
+              McButton('Continue to home', kind: BtnKind.grad, onTap: () => context.go('/home')),
             ],
           ),
         ),

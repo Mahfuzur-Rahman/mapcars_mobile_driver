@@ -316,7 +316,11 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
               McGhostButton(
                 'Cash out',
                 icon: 'bank',
-                onTap: () => _showCashOutModal(weekEarnings > 0 ? weekEarnings : 62.40),
+                // The driver's real balance — this used to fall back to £62.40
+                // and tell a driver who'd earned nothing that it had been sent.
+                onTap: weekEarnings > 0
+                    ? () => _showCashOutModal(weekEarnings)
+                    : null,
               ),
             ],
           ),

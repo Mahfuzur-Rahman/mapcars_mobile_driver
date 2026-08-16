@@ -9,14 +9,17 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/utils/money.dart';
 import '../../../core/widgets/mc.dart';
 import '../../../core/widgets/current_location_map.dart';
+import '../../account/providers/driver_trips_provider.dart';
 import '../../auth/providers/driver_approval_provider.dart';
 import '../../auth/services/driver_auth_service.dart';
 import '../providers/dispatch_board_controller.dart';
 import '../providers/driver_location_reporting_controller.dart';
 import '../providers/trip_realtime_controller.dart';
 import '../services/trip_service.dart';
+import 'accept_trip.dart';
 import 'widgets/request_card.dart';
 
 class DriverHomeScreen extends ConsumerStatefulWidget {
@@ -95,28 +98,6 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     if (_online) {
       ref.read(driverLocationReportingProvider).start();
       ref.read(dispatchBoardProvider.notifier).start(me.latitude, me.longitude);
-    }
-  }
-
-  Future<void> _acceptRequest(Trip trip) async {
-    final accepted = await ref.read(dispatchBoardProvider.notifier).accept(trip.id);
-    if (!mounted) return;
-    if (accepted != null) {
-      ref.read(driverLocationReportingProvider).setActiveTrip(accepted.id);
-      unawaited(ref.read(tripRealtimeProvider.notifier).attach(accepted.id));
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text('Trip accepted — head to the pickup.'),
-        ));
-      context.go('/nav-pickup', extra: accepted);
-    } else {
-      final error = ref.read(dispatchBoardProvider).error;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(
-          content: Text(error ?? 'That request is no longer available.'),
-        ));
     }
   }
 
@@ -413,16 +394,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    const McCard(
-                      padding: 14,
-                      child: Row(
-                        children: [
-                          _Stat('£62.40', 'Earnings'),
-                          _Stat('5', 'Trips'),
-                          _Stat('3h 12m', 'Online'),
-                        ],
-                      ),
-                    ),
+                    const _EarningsStats(),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -467,7 +439,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                 trip: focus,
                 busy: board.busyTripId == focus.id,
                 moreCount: board.trips.length - 1,
-                onAccept: () => _acceptRequest(focus),
+                onAccept: () => acceptTripAndGo(context, ref, focus),
                 onIgnore: () => _ignoreRequest(focus.id),
               ),
             ),
@@ -515,6 +487,59 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     return BitmapDescriptor.bytes(
       bytes!.buffer.asUint8List(),
       imagePixelRatio: 2.4,
+    );
+  }
+}
+
+/// The waiting sheet's headline numbers, from the driver's own completed trips
+/// (`GET /trips/mine`, shared with the earnings screen). These used to be three
+/// hard-coded figures — £62.40 / 5 trips / 3h 12m — shown to every driver.
+class _EarningsStats extends ConsumerWidget {
+  const _EarningsStats();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final trips = ref.watch(driverTripsProvider).valueOrNull;
+    if (trips == null) {
+      return const McCard(
+        padding: 14,
+        child: Row(
+          children: [
+            _Stat('—', 'Today'),
+            _Stat('—', 'Trips today'),
+            _Stat('—', 'This week'),
+          ],
+        ),
+      );
+    }
+
+    // Take-home, so the tip (paid 100% to the driver) is added to the base.
+    double takeHome(Trip t) => (t.driverEarnings ?? 0) + t.tipAmount;
+    DateTime finishedAt(Trip t) => (t.completedAtUtc ?? t.createdAtUtc).toLocal();
+
+    final now = DateTime.now();
+    final weekAgo = now.subtract(const Duration(days: 7));
+    final completed = trips.where((t) => t.status == TripStatus.completed);
+    final today = completed.where((t) {
+      final at = finishedAt(t);
+      return at.year == now.year && at.month == now.month && at.day == now.day;
+    }).toList();
+    final week = completed.where((t) => finishedAt(t).isAfter(weekAgo));
+
+    final todayPence =
+        (today.fold(0.0, (sum, t) => sum + takeHome(t)) * 100).round();
+    final weekPence =
+        (week.fold(0.0, (sum, t) => sum + takeHome(t)) * 100).round();
+
+    return McCard(
+      padding: 14,
+      child: Row(
+        children: [
+          _Stat(formatGbp(todayPence), 'Today'),
+          _Stat('${today.length}', 'Trips today'),
+          _Stat(formatGbp(weekPence), 'This week'),
+        ],
+      ),
     );
   }
 }

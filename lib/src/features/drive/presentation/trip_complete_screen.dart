@@ -10,16 +10,11 @@ import '../services/rating_service.dart';
 import '../services/trip_service.dart';
 
 class TripCompleteScreen extends ConsumerStatefulWidget {
-  const TripCompleteScreen({super.key, this.trip});
+  const TripCompleteScreen({super.key, required this.trip});
 
-  /// The just-completed trip, when the caller has one — null falls back to
-  /// the static walkthrough figures below (dev screen-stepper).
-  final Trip? trip;
-
-  // Demo trip fare until a real completed trip is passed in. The commission %
-  // below is always live — pulled from the fare chart — so the walkthrough
-  // earnings track the current platform config.
-  static const _farePence = 1150;
+  /// The just-completed trip — supplied by the driving screen on completion,
+  /// or resolved by `TripGate` as the driver's most recent completed trip.
+  final Trip trip;
 
   @override
   ConsumerState<TripCompleteScreen> createState() => _TripCompleteScreenState();
@@ -40,14 +35,7 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
   Future<void> _submitRating() async {
     if (_rating == 0 || _submitting || _submitted) return;
 
-    final tripId = widget.trip?.id;
-    if (tripId == null) {
-      // No real trip wired in (dev screen-stepper walkthrough) — nothing to
-      // rate against on the API, so just acknowledge locally.
-      setState(() => _submitted = true);
-      return;
-    }
-
+    final tripId = widget.trip.id;
     setState(() => _submitting = true);
     final comment = _commentCtrl.text.trim();
     try {
@@ -77,22 +65,22 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
   @override
   Widget build(BuildContext context) {
     final trip = widget.trip;
-    final isCash = trip?.isCash ?? false;
+    final isCash = trip.isCash;
     final feePercent =
         ref.watch(fareChartProvider).asData?.value.driverFeePercent ?? 15.0;
 
-    final farePence = trip?.fareAmount != null
-        ? (trip!.fareAmount! * 100).round()
-        : TripCompleteScreen._farePence;
-    final feePence = trip?.platformFeeAmount != null
-        ? (trip!.platformFeeAmount! * 100).round()
+    // Every figure comes off the trip itself; the fee % is only used to derive
+    // a fee for the odd trip the API completed without one recorded.
+    final farePence = ((trip.fareAmount ?? 0) * 100).round();
+    final feePence = trip.platformFeeAmount != null
+        ? (trip.platformFeeAmount! * 100).round()
         : (farePence * feePercent / 100).round();
     // The API's driverEarnings is the base take-home (fare − fee); the tip is a
     // separate field paid 100% to the driver, so add it back for the total.
-    final baseEarningsPence = trip?.driverEarnings != null
-        ? (trip!.driverEarnings! * 100).round()
+    final baseEarningsPence = trip.driverEarnings != null
+        ? (trip.driverEarnings! * 100).round()
         : farePence - feePence;
-    final tipPence = trip != null ? (trip.tipAmount * 100).round() : 0;
+    final tipPence = (trip.tipAmount * 100).round();
     final earningsPence = baseEarningsPence + tipPence;
     final feeLabel = feePercent % 1 == 0
         ? feePercent.toStringAsFixed(0)
@@ -177,7 +165,7 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
                           const SizedBox(width: 8),
                           Text(
                               isCash
-                                  ? 'Collected ${formatGbp(((trip?.cashDue ?? 0) * 100).round())} in cash'
+                                  ? 'Collected ${formatGbp((trip.cashDue * 100).round())} in cash'
                                   : 'Paid by card · added to balance',
                               style: tw(FontWeight.w700, 13, Brand.sub)),
                         ],
@@ -193,7 +181,9 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(trip != null ? 'Rate your rider' : 'Rate Sarah',
+                    Text('Rate ${trip.rider?.name ?? 'your rider'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: tw(FontWeight.w900, 14, Brand.ink)),
                     const SizedBox(height: 10),
                     Row(
@@ -235,7 +225,7 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
                         children: [
                           const Ico('check', size: 16, color: Brand.green),
                           const SizedBox(width: 6),
-                          Text(trip != null ? 'Thanks for rating your rider!' : 'Thanks for rating Sarah!',
+                          Text('Thanks for rating your rider!',
                               style: tw(FontWeight.w800, 13, Brand.green)),
                         ],
                       ),

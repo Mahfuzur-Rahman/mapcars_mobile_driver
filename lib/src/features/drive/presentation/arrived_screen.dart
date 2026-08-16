@@ -6,18 +6,16 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/router/nav.dart';
 import '../../../core/widgets/mc.dart';
-import '../../../core/widgets/map_background.dart';
 import '../providers/trip_realtime_controller.dart';
 import '../services/trip_service.dart';
 import 'widgets/live_route_map.dart';
 
 /// At the kerb: confirm the rider's meet-up PIN, then start the trip.
 class ArrivedScreen extends ConsumerStatefulWidget {
-  const ArrivedScreen({super.key, this.trip});
+  const ArrivedScreen({super.key, required this.trip});
 
-  /// The accepted trip, when the caller has one — null falls back to the
-  /// static walkthrough content below (dev screen-stepper).
-  final Trip? trip;
+  /// The accepted trip — always a real one, supplied or resolved by `TripGate`.
+  final Trip trip;
 
   @override
   ConsumerState<ArrivedScreen> createState() => _ArrivedScreenState();
@@ -28,7 +26,7 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
   final _entered = <String>[];
   bool _pinError = false;
 
-  String? get _expectedPin => widget.trip?.pin;
+  String? get _expectedPin => widget.trip.pin;
 
   /// A trip booked before PINs existed has none — don't strand the driver
   /// behind a check there's no answer to.
@@ -59,10 +57,6 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
   Future<void> _startTrip() async {
     if (_busy) return;
     final trip = widget.trip;
-    if (trip == null) {
-      context.go('/driving');
-      return;
-    }
     if (!_pinSatisfied) {
       setState(() => _pinError = true);
       return;
@@ -89,11 +83,11 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
   @override
   Widget build(BuildContext context) {
     final trip = widget.trip;
-    final riderName = trip?.rider?.name;
-    final rating = trip?.rider?.rating;
+    final riderName = trip.rider?.name ?? 'Your rider';
+    final rating = trip.rider?.rating;
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
-      if (trip != null && next.cancelledTrip?.id == trip.id) {
+      if (next.cancelledTrip?.id == trip.id) {
         showTripCancelledDialog(context, ref, next.cancelledTrip!);
       }
     });
@@ -102,20 +96,13 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: trip == null
-                ? const MapBackground(
-                    route: false,
-                    markers: [
-                      MapMarker(0.50, 0.40, MapPin(dest: true, label: 'Pickup')),
-                    ],
-                  )
-                // Already at the pickup, so there's no route left to draw —
-                // the map is here to confirm the driver is at the right spot.
-                : LiveRouteMap(
-                    destination: LatLng(trip.pickupLat, trip.pickupLng),
-                    destinationLabel: trip.pickupAddress,
-                    isPickup: true,
-                  ),
+            // Already at the pickup, so there's no route left to draw — the map
+            // is here to confirm the driver is at the right spot.
+            child: LiveRouteMap(
+              destination: LatLng(trip.pickupLat, trip.pickupLng),
+              destinationLabel: trip.pickupAddress,
+              isPickup: true,
+            ),
           ),
           Positioned(
             top: 56,
@@ -143,15 +130,17 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(riderName ?? (trip == null ? 'Sarah M.' : 'Your rider'),
+                              Text(riderName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: tw(FontWeight.w900, 17, Brand.ink)),
-                              if (rating != null || trip == null) ...[
+                              if (rating != null) ...[
                                 const SizedBox(height: 2),
                                 Row(
                                   children: [
                                     const Ico('starF', size: 14, color: Brand.star),
                                     const SizedBox(width: 4),
-                                    Text((rating ?? 4.8).toStringAsFixed(1),
+                                    Text(rating.toStringAsFixed(1),
                                         style: tw(FontWeight.w800, 13, Brand.sub)),
                                   ],
                                 ),
@@ -166,15 +155,12 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    if (_pinRequired || trip == null)
+                    if (_pinRequired)
                       _PinPad(
                         entered: _entered,
                         error: _pinError,
                         onDigit: _tapDigit,
                         onBackspace: _backspace,
-                        // The walkthrough has no trip and so no PIN to check;
-                        // showing the pad empty is enough to demo the step.
-                        enabled: _pinRequired,
                       )
                     else
                       McCard(
@@ -238,14 +224,12 @@ class _PinPad extends StatelessWidget {
     required this.error,
     required this.onDigit,
     required this.onBackspace,
-    required this.enabled,
   });
 
   final List<String> entered;
   final bool error;
   final ValueChanged<String> onDigit;
   final VoidCallback onBackspace;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -271,33 +255,31 @@ class _PinPad extends StatelessWidget {
               ],
             ],
           ),
-          if (enabled) ...[
-            const SizedBox(height: 14),
-            for (final row in const [
-              ['1', '2', '3'],
-              ['4', '5', '6'],
-              ['7', '8', '9'],
-              ['', '0', '<'],
-            ])
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    for (final key in row)
-                      Expanded(
-                        child: key.isEmpty
-                            ? const SizedBox(height: 44)
-                            : _Key(
-                                label: key,
-                                onTap: key == '<'
-                                    ? onBackspace
-                                    : () => onDigit(key),
-                              ),
-                      ),
-                  ],
-                ),
+          const SizedBox(height: 14),
+          for (final row in const [
+            ['1', '2', '3'],
+            ['4', '5', '6'],
+            ['7', '8', '9'],
+            ['', '0', '<'],
+          ])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  for (final key in row)
+                    Expanded(
+                      child: key.isEmpty
+                          ? const SizedBox(height: 44)
+                          : _Key(
+                              label: key,
+                              onTap: key == '<'
+                                  ? onBackspace
+                                  : () => onDigit(key),
+                            ),
+                    ),
+                ],
               ),
-          ],
+            ),
         ],
       ),
     );

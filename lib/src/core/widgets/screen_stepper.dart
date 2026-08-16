@@ -4,23 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../config/app_config.dart';
 import '../../features/auth/providers/auth_notifier.dart';
-import '../../features/drive/demo_trip.dart';
 import 'mc.dart';
 
 // Re-exported so the many screens that already import this file for
 // `devDrawerOpenProvider` keep working.
 export 'drawer_state.dart';
-
-/// Routes that render a real trip-flow screen and need a demo [Trip] to show
-/// their real map/data instead of falling back to static walkthrough art.
-const _routesNeedingDemoTrip = {
-  '/request',
-  '/nav-pickup',
-  '/arrived',
-  '/driving',
-  '/trip-complete',
-  '/chat',
-};
 
 /// One destination in the drawer.
 ///
@@ -294,10 +282,11 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
         child: InkWell(
           onTap: () {
             _close();
-            context.go(
-              item.path,
-              extra: _routesNeedingDemoTrip.contains(item.path) ? demoTrip : null,
-            );
+            // No `extra`: the trip screens resolve the driver's real trip
+            // themselves (see `TripGate`). This used to hand them a demo trip,
+            // which is why every step of the walk-through showed the same
+            // invented rider, route and fare.
+            context.go(item.path);
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),

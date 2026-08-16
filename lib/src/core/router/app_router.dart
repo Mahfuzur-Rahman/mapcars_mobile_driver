@@ -14,6 +14,7 @@ import '../../features/account/presentation/payouts_screen.dart';
 import '../../features/account/presentation/profile_screen.dart';
 import '../../features/account/presentation/settings_screen.dart';
 import '../../features/account/presentation/vehicle_form_screen.dart';
+import '../../features/account/presentation/vehicle_tier_screen.dart';
 import '../../features/account/services/vehicle_service.dart';
 import '../../features/dev/presentation/screen_index.dart';
 import '../../features/drive/presentation/arrived_screen.dart';
@@ -23,6 +24,7 @@ import '../../features/drive/presentation/home_screen.dart';
 import '../../features/drive/presentation/nav_pickup_screen.dart';
 import '../../features/drive/presentation/request_preview_screen.dart';
 import '../../features/drive/presentation/trip_complete_screen.dart';
+import '../../features/drive/presentation/widgets/trip_gate.dart';
 import '../../features/drive/services/trip_service.dart';
 import '../../features/onboarding/presentation/documents_screen.dart';
 import '../../features/onboarding/presentation/email_login_screen.dart';
@@ -66,6 +68,7 @@ const List<StepRoute> kDriverFlow = [
   StepRoute('/profile', 'Profile', category: 'Account', icon: 'user'),
   StepRoute('/profile/edit', 'Edit profile', category: 'Account'),
   StepRoute('/profile/vehicle', 'Vehicle', category: 'Account'),
+  StepRoute('/profile/tier', 'Vehicle tier', category: 'Account'),
   StepRoute('/settings', 'Settings', category: 'Account', icon: 'cog'),
   StepRoute('/settings/change-password', 'Change password', category: 'Account'),
   StepRoute('/screens', 'All Screens Index', category: 'Dev Tools'),
@@ -73,6 +76,22 @@ const List<StepRoute> kDriverFlow = [
 
 GoRoute _r(String path, Widget Function() b) =>
     GoRoute(path: path, builder: (c, s) => b());
+
+/// A trip-flow route: takes the [Trip] from `extra` when the caller passed one,
+/// otherwise lets [TripGate] resolve the driver's real trip from the API.
+GoRoute _trip(
+  String path,
+  Widget Function(Trip trip) b, {
+  TripGateScope scope = TripGateScope.active,
+}) =>
+    GoRoute(
+      path: path,
+      builder: (c, s) => TripGate(
+        trip: s.extra is Trip ? s.extra as Trip : null,
+        scope: scope,
+        builder: b,
+      ),
+    );
 
 /// Routes reachable without a session: the onboarding/verification funnel and
 /// the dev-only screen index. The whole onboarding flow stays public because the
@@ -162,35 +181,18 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           ),
           _r('/request', () => const RequestPreviewScreen()),
-          GoRoute(
-            path: '/nav-pickup',
-            builder: (c, s) => NavPickupScreen(
-              trip: s.extra is Trip ? s.extra as Trip : null,
-            ),
-          ),
-          GoRoute(
-            path: '/arrived',
-            builder: (c, s) => ArrivedScreen(
-              trip: s.extra is Trip ? s.extra as Trip : null,
-            ),
-          ),
-          GoRoute(
-            path: '/chat',
-            builder: (c, s) => ChatScreen(
-              trip: s.extra is Trip ? s.extra as Trip : null,
-            ),
-          ),
-          GoRoute(
-            path: '/driving',
-            builder: (c, s) => DrivingScreen(
-              trip: s.extra is Trip ? s.extra as Trip : null,
-            ),
-          ),
-          GoRoute(
-            path: '/trip-complete',
-            builder: (c, s) => TripCompleteScreen(
-              trip: s.extra is Trip ? s.extra as Trip : null,
-            ),
+          // The trip screens are only ever about a real trip. In the live flow
+          // one arrives through `extra`; entered any other way (menu, screen
+          // index, notification tap, restart) `TripGate` resolves the driver's
+          // own trip from the API, or says plainly that there isn't one.
+          _trip('/nav-pickup', (trip) => NavPickupScreen(trip: trip)),
+          _trip('/arrived', (trip) => ArrivedScreen(trip: trip)),
+          _trip('/chat', (trip) => ChatScreen(trip: trip)),
+          _trip('/driving', (trip) => DrivingScreen(trip: trip)),
+          _trip(
+            '/trip-complete',
+            (trip) => TripCompleteScreen(trip: trip),
+            scope: TripGateScope.lastCompleted,
           ),
           // Account
           _r('/earnings', () => const EarningsScreen()),
@@ -204,6 +206,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               vehicle: s.extra is Vehicle ? s.extra as Vehicle : null,
             ),
           ),
+          _r('/profile/tier', () => const VehicleTierScreen()),
           _r('/settings', () => const DriverSettingsScreen()),
           _r('/settings/change-password', () => const ChangePasswordScreen()),
           // Prototype screen index

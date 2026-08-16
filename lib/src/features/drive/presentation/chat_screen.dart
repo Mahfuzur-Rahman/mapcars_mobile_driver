@@ -4,46 +4,23 @@ import 'package:intl/intl.dart';
 
 import '../../../core/router/nav.dart';
 import '../../../core/widgets/mc.dart';
-import '../demo_trip.dart';
 import '../models/chat_message.dart';
 import '../providers/trip_realtime_controller.dart';
 import '../services/trip_service.dart';
 
-/// A small fake conversation shown only when previewing this screen with
-/// [demoTrip] (the dev "Screens" walkthrough) — there's no real trip/attach()
-/// behind that id for [TripRealtimeController.fetchMessages] to call.
-final _demoMessages = [
-  ChatMessage(
-    id: 'demo-1',
-    tripId: demoTrip.id,
-    senderType: 'rider',
-    senderId: 'demo-rider',
-    content: "Hi! I'm by the main entrance.",
-    sentAtUtc: DateTime.utc(2026, 1, 1, 9, 40),
-  ),
-  ChatMessage(
-    id: 'demo-2',
-    tripId: demoTrip.id,
-    senderType: 'driver',
-    senderId: 'demo-driver',
-    content: "On my way, about 3 minutes out.",
-    sentAtUtc: DateTime.utc(2026, 1, 1, 9, 41),
-  ),
-];
-
 /// In-trip chat with the current passenger.
 ///
 /// Receives [Trip] via go_router `extra` (same pattern as `/nav-pickup`,
-/// `/arrived`, `/driving`). Messages are fetched from
-/// `GET /trips/{id}/messages` on mount, sent via POST, and received live
-/// via the existing `messageReceived` SignalR push in
+/// `/arrived`, `/driving`), or from `TripGate` when opened without one.
+/// Messages are fetched from `GET /trips/{id}/messages` on mount, sent via
+/// POST, and received live via the existing `messageReceived` SignalR push in
 /// [TripRealtimeController].
 class ChatScreen extends ConsumerStatefulWidget {
-  const ChatScreen({super.key, this.trip});
+  const ChatScreen({super.key, required this.trip});
 
-  /// The accepted trip, when the caller has one — null falls back to a
-  /// safe empty state (dev screen-stepper preview).
-  final Trip? trip;
+  /// The trip being discussed — always a real one, supplied or resolved by
+  /// `TripGate`.
+  final Trip trip;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -56,14 +33,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.trip?.id == demoTrip.id) {
-      // Dev preview: seed a fake conversation instead of hitting the API.
-      ref.read(tripRealtimeProvider.notifier).seedDemoMessages(_demoMessages);
-    } else {
-      // Fetch existing messages when the screen opens.
-      Future.microtask(
-          () => ref.read(tripRealtimeProvider.notifier).fetchMessages());
-    }
+    // Attach before fetching: opened straight from the menu (or after a
+    // restart) the controller has no active trip yet, and fetchMessages()
+    // would no-op against a null id. Both calls are idempotent mid-trip.
+    Future.microtask(() async {
+      final realtime = ref.read(tripRealtimeProvider.notifier);
+      await realtime.attach(widget.trip.id);
+      await realtime.fetchMessages();
+    });
   }
 
   @override
@@ -98,11 +75,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final realtimeState = ref.watch(tripRealtimeProvider);
     final messages = realtimeState.chatMessages;
 
-    // Rider name / subtitle from the trip.
-    final riderName = trip?.rider?.name ?? 'Passenger';
-    final riderSub = trip != null
-        ? 'Passenger · ${trip.pickupAddress}'
-        : '';
+    // Rider name / subtitle from the trip. The API withholds rider details
+    // until the trip is this driver's, so a name isn't guaranteed.
+    final riderName = trip.rider?.name ?? 'Your rider';
+    final riderSub = 'Passenger · ${trip.pickupAddress}';
 
     // Auto-scroll when new messages arrive.
     ref.listen<List<ChatMessage>>(
