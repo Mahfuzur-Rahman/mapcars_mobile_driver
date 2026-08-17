@@ -65,6 +65,7 @@ const List<StepRoute> kDriverFlow = [
   StepRoute('/earnings', 'Earnings', category: 'Account', icon: 'chart'),
   StepRoute('/payouts', 'Payouts', category: 'Account', icon: 'bank'),
   StepRoute('/history', 'Trip history', category: 'Account', icon: 'clock'),
+  StepRoute('/documents', 'Documents', category: 'Account', icon: 'doc'),
   StepRoute('/profile', 'Profile', category: 'Account', icon: 'user'),
   StepRoute('/profile/edit', 'Edit profile', category: 'Account'),
   StepRoute('/profile/vehicle', 'Vehicle', category: 'Account'),

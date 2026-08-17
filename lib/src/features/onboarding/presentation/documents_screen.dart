@@ -59,8 +59,8 @@ class DocumentsScreen extends ConsumerStatefulWidget {
 }
 
 class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
-  /// Latest uploaded document per DocumentType name.
-  final Map<String, DriverDocument> _byType = {};
+  /// All uploaded documents grouped by DocumentType.
+  final Map<String, List<DriverDocument>> _docsByType = {};
   bool _loading = true;
   String? _uploadingType;
   bool _hasPicture = false;
@@ -75,10 +75,9 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
   Future<void> _load() async {
     try {
       final docs = await ref.read(driverDocumentsServiceProvider).list();
-      _byType.clear();
-      // List is newest-first — keep the first (latest) seen per type.
+      _docsByType.clear();
       for (final d in docs) {
-        _byType.putIfAbsent(d.type, () => d);
+        _docsByType.putIfAbsent(d.type, () => []).add(d);
       }
     } on ApiException {
       // No session yet (e.g. prototype browsing) — show the empty upload state.
@@ -147,7 +146,12 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
       final doc = await ref
           .read(driverDocumentsServiceProvider)
           .upload(type, File(path), expiresOn: expiresOn);
-      if (mounted) setState(() => _byType[type] = doc);
+      if (mounted) {
+        setState(() {
+          _docsByType.putIfAbsent(type, () => []).insert(0, doc);
+        });
+        _toast('Document uploaded successfully!');
+      }
     } on ApiException catch (e) {
       _toast(e.message);
     } catch (_) {
@@ -155,6 +159,181 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
     } finally {
       if (mounted) setState(() => _uploadingType = null);
     }
+  }
+
+  Future<void> _requestDeletionDialog(DriverDocument doc, String title) async {
+    final reasonController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Request Deletion', style: tw(FontWeight.w900, 16, Brand.ink)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Document: $title', style: tw(FontWeight.w700, 13, Brand.ink)),
+            Text(doc.originalFileName, style: tw(FontWeight.w500, 12, Brand.sub)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Text(
+                'Drivers cannot delete documents directly. Submitting this request sends it to admin for review.',
+                style: tw(FontWeight.w600, 11.5, Colors.amber.shade900),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text('Reason (Optional)', style: tw(FontWeight.w700, 12, Brand.ink)),
+            const SizedBox(height: 4),
+            TextField(
+              controller: reasonController,
+              maxLines: 2,
+              style: tw(FontWeight.w500, 12.5, Brand.ink),
+              decoration: InputDecoration(
+                hintText: 'e.g. Uploaded wrong file, replacing with renewed licence...',
+                hintStyle: tw(FontWeight.w500, 12, Brand.faint),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.all(10),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: tw(FontWeight.w700, 13, Brand.sub)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Submit Request', style: tw(FontWeight.w700, 13, Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await ref
+            .read(driverDocumentsServiceProvider)
+            .requestDeletion(doc.id, reason: reasonController.text);
+        _toast('Deletion request submitted to admin.');
+        await _load();
+      } catch (e) {
+        _toast('Failed to submit deletion request.');
+      }
+    }
+  }
+
+  void _previewDocument(DriverDocument doc, String title) {
+    final token = ref.read(authTokenProvider);
+    final contentUrl =
+        ref.read(driverDocumentsServiceProvider).getDocumentContentUrl(doc.id);
+    final isPdf = doc.originalFileName.toLowerCase().endsWith('.pdf');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: tw(FontWeight.w900, 15, Brand.ink)),
+                        Text(doc.originalFileName,
+                            style: tw(FontWeight.w600, 11, Brand.sub),
+                            overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                height: 320,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: isPdf
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.picture_as_pdf,
+                                color: Colors.white, size: 48),
+                            const SizedBox(height: 8),
+                            Text('PDF Document',
+                                style: tw(FontWeight.w700, 14, Colors.white)),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(doc.originalFileName,
+                                  style: tw(
+                                      FontWeight.w500, 12, Colors.white70),
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Image.network(
+                        contentUrl,
+                        headers: token != null
+                            ? {'Authorization': 'Bearer $token'}
+                            : null,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return const Center(
+                              child: CircularProgressIndicator(
+                                  color: Colors.white));
+                        },
+                        errorBuilder: (context, error, stack) => Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.broken_image,
+                                  color: Colors.white54, size: 40),
+                              const SizedBox(height: 6),
+                              Text('Preview unavailable',
+                                  style: tw(
+                                      FontWeight.w600, 12, Colors.white70)),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _toast(String message) {
@@ -165,7 +344,8 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
   }
 
   bool get _allRequiredUploaded =>
-      _hasPicture && _required.every((d) => _byType.containsKey(d.$1));
+      _hasPicture &&
+      _required.every((d) => (_docsByType[d.$1] ?? []).isNotEmpty);
 
   @override
   Widget build(BuildContext context) {
@@ -180,7 +360,8 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const McNavHeader(title: 'Upload documents', fallback: '/home', showMenu: false),
+                  const McNavHeader(
+                      title: 'Upload documents', fallback: '/home', showMenu: false),
                   const SizedBox(height: 8),
                   Text('We verify these to keep riders safe. JPG, PNG or PDF.',
                       style: tw(FontWeight.w600, 14, Brand.sub)),
@@ -200,22 +381,22 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                           const SizedBox(height: 20),
                           _sectionLabel('Required documents'),
                           for (final d in _required) ...[
-                            _docCard(d),
+                            _docCategorySection(d),
                             const SizedBox(height: 12),
                           ],
                           const SizedBox(height: 8),
                           _sectionLabel('Vehicle photos'),
                           for (final d in _vehiclePhotos) ...[
-                            _docCard(d),
+                            _docCategorySection(d),
                             const SizedBox(height: 12),
                           ],
                           const SizedBox(height: 8),
                           _sectionLabel('Additional documents'),
                           for (final d in _additional) ...[
-                            _docCard(d),
+                            _docCategorySection(d),
                             const SizedBox(height: 12),
                           ],
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 14),
                           Opacity(
                             opacity: _allRequiredUploaded ? 1 : 0.5,
                             child: McButton(
@@ -270,12 +451,15 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                   : _hasPicture && token != null
                       ? ClipOval(
                           child: Image.network(
-                            ref.read(driverAuthServiceProvider).profilePictureUrl(Env.apiBaseUrl),
+                            ref
+                                .read(driverAuthServiceProvider)
+                                .profilePictureUrl(Env.apiBaseUrl),
                             headers: {'Authorization': 'Bearer $token'},
                             width: 44,
                             height: 44,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stack) => const McAvatar(size: 44),
+                            errorBuilder: (context, error, stack) =>
+                                const McAvatar(size: 44),
                           ),
                         )
                       : const McAvatar(size: 44),
@@ -285,7 +469,8 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('A clear photo of your face', style: tw(FontWeight.w900, 14.5, Brand.ink)),
+                  Text('A clear photo of your face',
+                      style: tw(FontWeight.w900, 14.5, Brand.ink)),
                   const SizedBox(height: 2),
                   Text(
                     _uploadingPicture
@@ -293,105 +478,195 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                         : _hasPicture
                             ? 'Added · tap to change'
                             : 'Required for approval',
-                    style: tw(FontWeight.w600, 12.5, _hasPicture ? Brand.green : Brand.sub),
+                    style: tw(FontWeight.w600, 12.5,
+                        _hasPicture ? Brand.green : Brand.sub),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            if (!_uploadingPicture) Ico(_hasPicture ? 'chevR' : 'camera', size: 20, color: Brand.faint),
+            if (!_uploadingPicture)
+              Ico(_hasPicture ? 'chevR' : 'camera',
+                  size: 20, color: Brand.faint),
           ],
         ),
       ),
     );
   }
 
-  Widget _docCard(_DocSpec spec) {
+  Widget _docCategorySection(_DocSpec spec) {
     final (type, title, hint) = spec;
-    final doc = _byType[type];
+    final docs = _docsByType[type] ?? [];
     final uploading = _uploadingType == type;
 
-    final approved = doc?.reviewStatus == 'Approved';
-    final rejected = doc?.reviewStatus == 'Rejected';
-    final uploaded = doc != null;
-
-    final (String iconName, Color iconBg, Color iconColor) = approved
-        ? ('check', Brand.green, Colors.white)
-        : rejected
-            ? ('upload', _red.withValues(alpha: 0.12), _red)
-            : uploaded
-                ? ('doc', Brand.fill, Brand.sub)
-                : ('upload', Brand.fill, Brand.sub);
-
-    final String? expirySuffix = doc?.expiresOn == null
-        ? null
-        : ' · Exp ${doc!.expiresOn!.day.toString().padLeft(2, '0')}/${doc.expiresOn!.month.toString().padLeft(2, '0')}/${doc.expiresOn!.year}';
-
-    final String sub = uploading
-        ? 'Uploading…'
-        : rejected
-            ? 'Rejected · tap to re-upload'
-            : approved
-                ? 'Approved${expirySuffix ?? ''}'
-                : uploaded
-                    ? 'Uploaded · in review${expirySuffix ?? ''}'
-                    : hint;
-
-    final Color subColor = rejected
-        ? _red
-        : approved
-            ? Brand.green
-            : Brand.sub;
-
-    return GestureDetector(
-      onTap: uploading ? null : () => _pick(type),
-      child: McCard(
-        padding: 14,
-        color: approved ? Brand.green.withValues(alpha: 0.047) : null,
-        border: approved
-            ? Brand.green.withValues(alpha: 0.33)
-            : rejected
-                ? _red.withValues(alpha: 0.4)
-                : uploaded
-                    ? Brand.blue
-                    : null,
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: uploading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2.4),
-                      )
-                    : Ico(iconName, size: 22, color: iconColor),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: tw(FontWeight.w900, 14.5, Brand.ink)),
-                  const SizedBox(height: 2),
-                  Text(sub, style: tw(FontWeight.w600, 12.5, subColor)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            if (approved)
-              Text('✓', style: tw(FontWeight.w800, 14, Brand.green))
-            else if (!uploading)
-              Ico(uploaded ? 'chevR' : 'plus', size: 20, color: Brand.faint),
-          ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: docs.isNotEmpty
+              ? Brand.blue.withValues(alpha: 0.3)
+              : Brand.line,
         ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Category Header & Upload Action
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: tw(FontWeight.w900, 14.5, Brand.ink)),
+                      const SizedBox(height: 2),
+                      Text(hint, style: tw(FontWeight.w500, 12, Brand.sub)),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: uploading ? null : () => _pick(type),
+                  icon: uploading
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_circle_outline, size: 16),
+                  label: Text(
+                    docs.isEmpty ? 'Upload' : 'Add Another',
+                    style: tw(FontWeight.w700, 12, Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Brand.blue,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    minimumSize: const Size(60, 32),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Uploaded Files List under this category
+          if (docs.isNotEmpty) ...[
+            const Divider(height: 1, color: Brand.line),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              itemCount: docs.length,
+              separatorBuilder: (context, index) =>
+                  const Divider(height: 1, indent: 14, endIndent: 14, color: Brand.line),
+              itemBuilder: (context, index) {
+                final doc = docs[index];
+                return _docItemRow(doc, title);
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _docItemRow(DriverDocument doc, String categoryTitle) {
+    final approved = doc.reviewStatus == 'Approved';
+    final rejected = doc.reviewStatus == 'Rejected';
+
+    final (String statusLabel, Color statusColor, Color statusBg) =
+        doc.isDeletionRequested
+            ? ('Deletion Requested', _red, _red.withValues(alpha: 0.1))
+            : approved
+                ? ('Approved', Brand.green, Brand.green.withValues(alpha: 0.1))
+                : rejected
+                    ? ('Rejected', _red, _red.withValues(alpha: 0.1))
+                    : ('In Review', Colors.amber.shade900, Colors.amber.shade50);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.description_outlined, size: 20, color: Brand.sub),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  doc.originalFileName,
+                  style: tw(FontWeight.w700, 12.5, Brand.ink),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusBg,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: tw(FontWeight.w800, 10, statusColor),
+                      ),
+                    ),
+                    if (doc.expiresOn != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        'Exp: ${doc.expiresOn!.day}/${doc.expiresOn!.month}/${doc.expiresOn!.year}',
+                        style: tw(FontWeight.w500, 11, Brand.sub),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // View Button
+          TextButton(
+            onPressed: () => _previewDocument(doc, categoryTitle),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: const Size(40, 30),
+            ),
+            child: Text('View', style: tw(FontWeight.w700, 12, Brand.blue)),
+          ),
+          // Request Deletion Button
+          OutlinedButton(
+            onPressed: doc.isDeletionRequested
+                ? null
+                : () => _requestDeletionDialog(doc, categoryTitle),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _red,
+              side: BorderSide(
+                color: doc.isDeletionRequested
+                    ? Brand.line
+                    : _red.withValues(alpha: 0.5),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: const Size(50, 30),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              doc.isDeletionRequested ? 'Pending' : 'Delete',
+              style: tw(
+                FontWeight.w700,
+                11.5,
+                doc.isDeletionRequested ? Brand.faint : _red,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -16,6 +16,9 @@ class DriverDocument {
     required this.createdAtUtc,
     this.reviewedAtUtc,
     this.expiresOn,
+    this.isDeletionRequested = false,
+    this.deletionReason,
+    this.deletionRequestedAtUtc,
   });
 
   final String id;
@@ -33,6 +36,10 @@ class DriverDocument {
   /// VehicleRegistration/DbsCheck — null for the vehicle-photo types.
   final DateTime? expiresOn;
 
+  final bool isDeletionRequested;
+  final String? deletionReason;
+  final DateTime? deletionRequestedAtUtc;
+
   factory DriverDocument.fromJson(Map<String, dynamic> j) => DriverDocument(
         id: j['id'].toString(),
         type: j['type'] as String,
@@ -45,6 +52,11 @@ class DriverDocument {
         expiresOn: j['expiresOn'] == null
             ? null
             : DateTime.parse(j['expiresOn'] as String),
+        isDeletionRequested: j['isDeletionRequested'] as bool? ?? false,
+        deletionReason: j['deletionReason'] as String?,
+        deletionRequestedAtUtc: j['deletionRequestedAtUtc'] == null
+            ? null
+            : DateTime.parse(j['deletionRequestedAtUtc'] as String),
       );
 }
 
@@ -80,6 +92,25 @@ class DriverDocumentsService {
         final res = await _dio.post<Map<String, dynamic>>(_base, data: formData);
         return DriverDocument.fromJson(res.data!);
       });
+
+  /// Requests the document to be deleted by admin.
+  Future<DriverDocument> requestDeletion(String documentId, {String? reason}) =>
+      apiCall(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '$_base/$documentId/request-deletion',
+          data: {
+            if (reason != null && reason.trim().isNotEmpty)
+              'reason': reason.trim(),
+          },
+        );
+        return DriverDocument.fromJson(res.data!);
+      });
+
+  /// Returns full URL to stream document bytes.
+  String getDocumentContentUrl(String documentId) {
+    final baseUrl = _dio.options.baseUrl;
+    return '$baseUrl$_base/$documentId/content';
+  }
 }
 
 final driverDocumentsServiceProvider = Provider<DriverDocumentsService>(

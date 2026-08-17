@@ -30,7 +30,9 @@ This document serves as the live log, interactive checklist, and step-by-step re
 | **2026-08-01** | Android Release Keystore Generation | ✅ Done | `upload-keystore.jks` + `key.properties` generated 2026-08-09, backed up to `keys/mobile/driver_app/android/`. |
 | **2026-08-09** | Production App Bundle (`.aab`) Build | ✅ Done | `flutter build appbundle --release` → `build/app/outputs/bundle/release/app-release.aab` (66.6MB), version `0.1.0+1`. |
 | **2026-08-09** | App Bundle Rebuilt | ✅ Done | First `.aab` predated the FCM `main.dart`/`env.dart` wiring (built 21:36, code edited 21:42). Rebuilt clean at 22:09 → `app-release.aab` (69.8MB, still `0.1.0+1`), confirmed signed with the release keystore. |
-| **2026-08-10** | App Bundle Rebuilt (v2) | ✅ Done | Picked up recent account/onboarding changes (`vehicle_form_screen.dart`, `verify_screen.dart`, `driver_profile_form.dart`, `documents_screen.dart`, `profile_screen.dart`, etc.) predating the 08-09 build. Bumped to `0.1.0+2` → `app-release.aab` (66.6MB), confirmed signed with the release keystore. **Use this build**, not the 08-09 one. |
+| **2026-08-10** | App Bundle Rebuilt (v2) | ✅ Done | Bumped to `0.1.0+2` → `app-release.aab` (66.6MB). |
+| **2026-08-14** | App Bundle Rebuilt (v4) | ✅ Done | Bumped to `0.1.0+4` → `app-release.aab` (66.9MB), commit `069ba46`. |
+| **2026-08-17** | App Bundle Rebuilt (v5) | ✅ Done | Bumped to `0.1.0+5` → `app-release.aab` (67.1MB) & `app-release.apk` (68.4MB), commit `7db72b9`. Signed with release keystore (`CN=Mapcars Driver`). **Use this build for Play Console upload.** |
 | **Pending** | App Content & Policy Declarations | ⬜ Pending | Data safety, Privacy Policy, Target Audience, Review Credentials. |
 | **Pending** | Internal / Closed Testing Track Release | ⬜ Pending | First upload of `.aab` file and testing setup. |
 | **Pending** | Production Release & Play Store Review Submission | ⬜ Pending | Submit for final Google review. |
