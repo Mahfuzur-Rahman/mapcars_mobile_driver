@@ -103,7 +103,12 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     _lastFix = me;
     if (_online) {
       ref.read(driverLocationReportingProvider).start();
-      ref.read(dispatchBoardProvider.notifier).start(me.latitude, me.longitude);
+      final board = ref.read(dispatchBoardProvider.notifier);
+      // start() is a no-op once the board is running, so a driver who has
+      // moved since going online would otherwise have their board polled
+      // against the position they started their shift at.
+      board.start(me.latitude, me.longitude);
+      board.updatePosition(me.latitude, me.longitude);
     }
   }
 

@@ -32,6 +32,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications (the new-request alert) uses java.time
+        // APIs that minSdk predates, so it refuses to build without this.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -72,8 +75,20 @@ android {
             // Shrink code + resources for the smallest possible download.
             isMinifyEnabled = true
             isShrinkResources = true
+            // flutter_local_notifications ships no consumer rules and relies on
+            // GSON reflection, so R8 would break the new-request alert in
+            // release builds only. See proguard-rules.pro.
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
+}
+
+dependencies {
+    // Required by isCoreLibraryDesugaringEnabled above.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 kotlin {
