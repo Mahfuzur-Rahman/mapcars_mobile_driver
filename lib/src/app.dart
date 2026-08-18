@@ -5,12 +5,42 @@ import 'core/network/api_client.dart';
 import 'core/notifications/push_service.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/drive/providers/trip_realtime_controller.dart';
 
-class MapcarsDriverApp extends ConsumerWidget {
+class MapcarsDriverApp extends ConsumerStatefulWidget {
   const MapcarsDriverApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MapcarsDriverApp> createState() => _MapcarsDriverAppState();
+}
+
+class _MapcarsDriverAppState extends ConsumerState<MapcarsDriverApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// A working driver has the screen off in a cradle for most of a job, and
+  /// Android suspends the socket while it is. Coming back re-reads the trip and
+  /// re-joins its group, so a cancellation that happened during the drive
+  /// surfaces immediately instead of at the driver's next failed action.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(tripRealtimeProvider.notifier).appResumed();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Register/unregister this device for push as the auth session comes and
     // goes (token null → signed in → registers; back to null → unregisters).
     ref.listen<String?>(authTokenProvider, (prev, next) {

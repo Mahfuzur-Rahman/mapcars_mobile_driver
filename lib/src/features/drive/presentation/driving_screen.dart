@@ -83,7 +83,9 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
             child: LiveRouteMap(
               destination: LatLng(trip.dropoffLat, trip.dropoffLng),
               destinationLabel: trip.dropoffAddress,
-              onProgress: (p) => setState(() => _progress = p),
+              onProgress: (p) {
+                if (mounted) setState(() => _progress = p);
+              },
             ),
           ),
           Positioned(

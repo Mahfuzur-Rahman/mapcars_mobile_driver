@@ -23,6 +23,13 @@ const _liveStatuses = {
 /// two-step the home screen's resume path does.
 final activeTripProvider = FutureProvider.autoDispose<Trip?>((ref) async {
   final trips = ref.watch(tripServiceProvider);
+  try {
+    final direct = await trips.getActive();
+    if (direct != null && _liveStatuses.contains(direct.status)) {
+      return direct;
+    }
+  } catch (_) {}
+
   final mine = await trips.mine();
   final live = mine.where((t) => _liveStatuses.contains(t.status)).toList();
   if (live.isEmpty) return null;

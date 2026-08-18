@@ -55,25 +55,31 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   /// active trip. Re-arm location relaying (otherwise the rider's map freezes
   /// for the rest of the ride) and put them back on the right screen.
   Future<void> _resumeActiveTrip() async {
-    Trip active;
+    Trip? active;
     try {
       final trips = ref.read(tripServiceProvider);
-      final mine = await trips.mine();
-      final live = mine.where((t) =>
-          t.status == TripStatus.driverAssigned ||
-          t.status == TripStatus.driverArrived ||
-          t.status == TripStatus.inProgress);
-      if (live.isEmpty) return;
-
-      final candidate = live.reduce(
-          (a, b) => a.createdAtUtc.isAfter(b.createdAtUtc) ? a : b);
-      // `mine` is a list view and omits the rider details and PIN, which the
-      // arrived screen needs — re-fetch the trip in full.
-      active = await trips.get(candidate.id);
+      final direct = await trips.getActive();
+      if (direct != null &&
+          (direct.status == TripStatus.driverAssigned ||
+           direct.status == TripStatus.driverArrived ||
+           direct.status == TripStatus.inProgress)) {
+        active = direct;
+      } else {
+        final mine = await trips.mine();
+        final live = mine.where((t) =>
+            t.status == TripStatus.driverAssigned ||
+            t.status == TripStatus.driverArrived ||
+            t.status == TripStatus.inProgress).toList();
+        if (live.isNotEmpty) {
+          final candidate = live.reduce(
+              (a, b) => a.createdAtUtc.isAfter(b.createdAtUtc) ? a : b);
+          active = await trips.get(candidate.id);
+        }
+      }
     } catch (_) {
       return; // Offline or the call failed — home is a safe place to land.
     }
-    if (!mounted) return;
+    if (active == null || !mounted) return;
 
     // Re-arm location relaying before navigating away. This screen's
     // `_onLocated` is what normally starts it, and we're about to leave before

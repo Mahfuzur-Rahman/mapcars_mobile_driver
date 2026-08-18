@@ -92,7 +92,9 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
               destination: LatLng(trip.pickupLat, trip.pickupLng),
               destinationLabel: trip.pickupAddress,
               isPickup: true,
-              onProgress: (p) => setState(() => _progress = p),
+              onProgress: (p) {
+                if (mounted) setState(() => _progress = p);
+              },
             ),
           ),
           Positioned(

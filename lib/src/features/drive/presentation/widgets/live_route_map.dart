@@ -239,28 +239,32 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
     if (onProgress == null) return;
 
     final route = _route;
+    final RouteProgress progress;
     if (route == null || route.points.length < 2) {
       final straight = _metersBetween(me, widget.destination);
       final meters = straight * 1.35;
-      onProgress(RouteProgress(
+      progress = RouteProgress(
         remainingMeters: meters,
         // 18 mph is a realistic urban average, and the same figure the customer
         // app estimates with when it has no previewed route.
         remainingSeconds: (meters / 1609.344 / 18.0 * 3600).round(),
         totalMeters: meters,
-      ));
-      return;
+      );
+    } else {
+      final remaining = _remainingAlongRoute(me, route.points);
+      final total = route.distanceMeters.toDouble();
+      final ratio = total <= 0 ? 0.0 : (remaining / total).clamp(0.0, 1.0);
+
+      progress = RouteProgress(
+        remainingMeters: remaining,
+        remainingSeconds: (route.durationSeconds * ratio).round(),
+        totalMeters: total,
+      );
     }
 
-    final remaining = _remainingAlongRoute(me, route.points);
-    final total = route.distanceMeters.toDouble();
-    final ratio = total <= 0 ? 0.0 : (remaining / total).clamp(0.0, 1.0);
-
-    onProgress(RouteProgress(
-      remainingMeters: remaining,
-      remainingSeconds: (route.durationSeconds * ratio).round(),
-      totalMeters: total,
-    ));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) onProgress(progress);
+    });
   }
 
   /// Metres from [me] to the end of [points], via the nearest point on the line.

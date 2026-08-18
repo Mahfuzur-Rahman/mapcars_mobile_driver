@@ -205,6 +205,22 @@ class TripService {
         return Trip.fromJson(res.data!);
       });
 
+  /// `GET /trips/active` — the signed-in driver's current active job in full
+  /// with rider details and PIN, or null if none.
+  Future<Trip?> getActive() => apiCall(() async {
+        try {
+          final res = await _dio.get<Map<String, dynamic>>('$_base/active');
+          final data = res.data;
+          if (data == null || data.isEmpty) return null;
+          return Trip.fromJson(data);
+        } on DioException catch (e) {
+          if (e.response?.statusCode == 204 || e.response?.statusCode == 404) {
+            return null;
+          }
+          rethrow;
+        }
+      });
+
   /// `GET /trips/mine` — the signed-in driver's own trips.
   Future<List<Trip>> mine() => apiCall(() async {
         final res = await _dio.get<List<dynamic>>('$_base/mine');

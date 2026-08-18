@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,25 +47,90 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
   final RealtimeService _rt = RealtimeService();
   String? _activeTripId;
 
+  /// How often the trip is re-read over REST while the socket is down. A driver
+  /// who doesn't hear about a cancellation keeps driving to a pickup that isn't
+  /// happening, so this is short.
+  static const _pollWhenOffline = Duration(seconds: 6);
+
+  /// Heartbeat while the socket is up — "connected" is not proof of
+  /// "subscribed", which is the failure this net exists for.
+  static const _pollWhenOnline = Duration(seconds: 20);
+
+  Timer? _watchdog;
+  bool _connected = false;
+
   /// Idempotent: a no-op if already attached to this trip.
   Future<void> attach(String tripId) async {
     if (_activeTripId == tripId) return;
     _activeTripId = tripId;
+    _startWatchdog();
 
     final token = _ref.read(authTokenProvider);
     if (token == null) return;
+
+    _rt.onConnectionChange = (connected) {
+      _connected = connected;
+      if (connected) unawaited(_refreshTrip());
+      _startWatchdog();
+    };
 
     await _rt.connect(token, {
       'tripUpdated': _onTripUpdated,
       'messageReceived': _onMessageReceived,
     });
-    await _rt.invoke('JoinTrip', args: [tripId]);
+    // joinTrip, not invoke: group membership is per connection id, so a
+    // reconnect silently unsubscribes unless the service replays it.
+    await _rt.joinTrip(tripId);
   }
 
   Future<void> detach() async {
     _activeTripId = null;
+    _watchdog?.cancel();
+    _watchdog = null;
     await _rt.disconnect();
     if (mounted) state = const TripRealtimeState();
+  }
+
+  void _startWatchdog() {
+    _watchdog?.cancel();
+    if (_activeTripId == null) {
+      _watchdog = null;
+      return;
+    }
+    final every = _connected ? _pollWhenOnline : _pollWhenOffline;
+    _watchdog = Timer(every, () {
+      _watchdog = null;
+      unawaited(_refreshTrip().whenComplete(_startWatchdog));
+    });
+  }
+
+  /// Re-reads the active trip over REST and folds it through the same handler
+  /// the push uses, so a cancellation is noticed either way.
+  Future<void> _refreshTrip() async {
+    final tripId = _activeTripId;
+    if (tripId == null) return;
+    try {
+      final trip = await _ref.read(tripServiceProvider).get(tripId);
+      _absorb(trip);
+    } catch (e) {
+      if (kDebugMode) debugPrint('[trip-realtime] poll failed: $e');
+    }
+  }
+
+  /// Call when the app returns to the foreground — a driver's phone spends the
+  /// drive with the screen off, and Android suspends the socket while it is.
+  Future<void> appResumed() async {
+    final tripId = _activeTripId;
+    if (tripId == null) return;
+    await _refreshTrip();
+    final token = _ref.read(authTokenProvider);
+    if (token != null) {
+      await _rt.connect(token, {
+        'tripUpdated': _onTripUpdated,
+        'messageReceived': _onMessageReceived,
+      });
+      await _rt.joinTrip(tripId);
+    }
   }
 
   void _onTripUpdated(List<Object?>? args) {
@@ -71,16 +138,21 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
     final raw = args.first;
     if (raw is! Map) return;
     try {
-      final trip = Trip.fromJson(Map<String, dynamic>.from(raw));
-      if (trip.id != _activeTripId) return;
-      // Every other status is the driver's own action (accept/arrive/start/
-      // complete) echoing back — only a cancellation is news to react to.
-      final cancelled = trip.status == TripStatus.cancelledByRider ||
-          trip.status == TripStatus.cancelledByDriver;
-      if (cancelled && mounted) state = TripRealtimeState(cancelledTrip: trip);
+      _absorb(Trip.fromJson(Map<String, dynamic>.from(raw)));
     } catch (e) {
       if (kDebugMode) debugPrint('[trip-realtime] bad tripUpdated payload: $e');
     }
+  }
+
+  /// The single place a trip update lands, whether it came over the socket or
+  /// out of the REST poll.
+  void _absorb(Trip trip) {
+    if (trip.id != _activeTripId) return;
+    // Every other status is the driver's own action (accept/arrive/start/
+    // complete) echoing back — only a cancellation is news to react to.
+    final cancelled = trip.status == TripStatus.cancelledByRider ||
+        trip.status == TripStatus.cancelledByDriver;
+    if (cancelled && mounted) state = TripRealtimeState(cancelledTrip: trip);
   }
 
   void _onMessageReceived(List<Object?>? args) {
@@ -138,6 +210,7 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
 
   @override
   void dispose() {
+    _watchdog?.cancel();
     _rt.disconnect();
     super.dispose();
   }
