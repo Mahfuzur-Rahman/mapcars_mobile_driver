@@ -53,6 +53,13 @@ class DispatchBoardController extends StateNotifier<DispatchBoardState> {
 
   final Ref _ref;
   final RealtimeService _rt = RealtimeService();
+
+  /// Requests this driver has waved away with Ignore. Kept for the shift so the
+  /// poll in [_refresh] and a re-sent `tripAvailable` can't put a job the driver
+  /// already turned down back in front of them. Memory only — a request lives
+  /// minutes, and [stop] clears it so going offline and back on is a clean slate.
+  final Set<String> _ignored = <String>{};
+
   bool _active = false;
   bool _connected = false;
   Timer? _watchdog;
@@ -100,6 +107,7 @@ class DispatchBoardController extends StateNotifier<DispatchBoardState> {
 
   Future<void> stop() async {
     _active = false;
+    _ignored.clear();
     _watchdog?.cancel();
     _watchdog = null;
     _rt.onConnectionChange = null;
@@ -136,6 +144,10 @@ class DispatchBoardController extends StateNotifier<DispatchBoardState> {
       return; // transient — the next tick tries again
     }
     if (!_active || !mounted) return;
+
+    // An ignored job is still open on the server and still on every other
+    // driver's board — it's just no longer on this one.
+    fresh = fresh.where((t) => !_ignored.contains(t.id)).toList();
 
     // Preserve the driver's own ordering (bringToFront / ignore) for jobs still
     // on offer, then append whatever is genuinely new.
@@ -178,6 +190,7 @@ class DispatchBoardController extends StateNotifier<DispatchBoardState> {
     if (raw is! Map) return;
     try {
       final trip = Trip.fromJson(Map<String, dynamic>.from(raw));
+      if (_ignored.contains(trip.id)) return;
       if (state.trips.any((t) => t.id == trip.id)) return;
       unawaited(_announce(trip));
       if (mounted) {
@@ -213,17 +226,24 @@ class DispatchBoardController extends StateNotifier<DispatchBoardState> {
     state = DispatchBoardState(trips: list, busyTripId: state.busyTripId);
   }
 
-  /// Locally deprioritizes [tripId] (moves it to the back) so a different
-  /// request comes to the front. There's no server-side decline in the
-  /// broadcast model — the request stays live for every other driver.
+  /// Waves [tripId] away for the rest of this shift: off the board now, and
+  /// filtered out of the poll and the `tripAvailable` push so it can't come
+  /// back. It used to only move the request to the *back* of the list, which
+  /// meant a driver who turned a job down met it again the moment the board
+  /// emptied. There's still no server-side decline in the broadcast model —
+  /// the request stays live for every other driver.
   void ignore(String tripId) {
-    final list = [...state.trips];
-    final i = list.indexWhere((t) => t.id == tripId);
-    if (i < 0) return;
-    final trip = list.removeAt(i);
-    list.add(trip);
-    state = DispatchBoardState(trips: list, busyTripId: state.busyTripId);
+    _ignored.add(tripId);
+    if (!state.trips.any((t) => t.id == tripId)) return;
+    state = DispatchBoardState(
+      trips: state.trips.where((t) => t.id != tripId).toList(),
+      busyTripId: state.busyTripId,
+    );
   }
+
+  /// Whether the driver has already waved [tripId] away — for the one-shot
+  /// board on `/request`, which fetches outside this controller's state.
+  bool isIgnored(String tripId) => _ignored.contains(tripId);
 
   /// Accept [tripId]. Returns the accepted [Trip] on success, or null if
   /// another driver won the race (or the call otherwise failed) — either way

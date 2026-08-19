@@ -59,6 +59,20 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
   Timer? _watchdog;
   bool _connected = false;
 
+  /// The trip the driver is cancelling themselves. The server pushes that
+  /// cancellation back to the trip's own group — this driver included — so
+  /// without this their own Cancel job would bounce back through [_absorb] as a
+  /// "cancelled out from under you" dialog on top of the action they just took.
+  /// A successful cancel calls [detach] straight after, which clears it.
+  String? _selfCancelledTripId;
+
+  /// Arm the guard above, just before `POST /trips/{id}/cancel`.
+  void expectOwnCancellation(String tripId) => _selfCancelledTripId = tripId;
+
+  /// Disarm it when that call failed — the trip is still live, so a real
+  /// cancellation arriving later still has to reach the driver.
+  void forgetOwnCancellation() => _selfCancelledTripId = null;
+
   /// Idempotent: a no-op if already attached to this trip.
   Future<void> attach(String tripId) async {
     if (_activeTripId == tripId) return;
@@ -85,6 +99,7 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
 
   Future<void> detach() async {
     _activeTripId = null;
+    _selfCancelledTripId = null;
     _watchdog?.cancel();
     _watchdog = null;
     await _rt.disconnect();
@@ -152,6 +167,7 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
     // complete) echoing back — only a cancellation is news to react to.
     final cancelled = trip.status == TripStatus.cancelledByRider ||
         trip.status == TripStatus.cancelledByDriver;
+    if (trip.id == _selfCancelledTripId) return; // their own Cancel job, echoed
     if (cancelled && mounted) state = TripRealtimeState(cancelledTrip: trip);
   }
 

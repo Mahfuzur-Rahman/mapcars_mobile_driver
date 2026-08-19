@@ -8,6 +8,7 @@ import '../../../core/router/nav.dart';
 import '../../../core/widgets/mc.dart';
 import '../providers/trip_realtime_controller.dart';
 import '../services/trip_service.dart';
+import 'cancel_job.dart';
 import 'widgets/live_route_map.dart';
 
 /// At the kerb: confirm the rider's meet-up PIN, then start the trip.
@@ -78,6 +79,16 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
               : "Couldn't start the trip. Please try again."),
         ));
     }
+  }
+
+  /// Drops the job while waiting at the kerb — the last moment the driver can.
+  /// [confirmCancelJob] offers the no-show flag from here, because this is the
+  /// only status the API honours it on.
+  Future<void> _cancelJob() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await confirmCancelJob(context, ref, widget.trip);
+    if (mounted) setState(() => _busy = false);
   }
 
   @override
@@ -183,6 +194,13 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
                       icon: 'nav',
                       kind: BtnKind.green,
                       onTap: (_busy || !_pinSatisfied) ? null : _startTrip,
+                    ),
+                    const SizedBox(height: 10),
+                    McDangerButton(
+                      'Cancel job',
+                      icon: 'x',
+                      height: 48,
+                      onTap: _busy ? null : _cancelJob,
                     ),
                   ],
                 ),

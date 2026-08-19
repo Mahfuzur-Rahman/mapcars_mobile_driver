@@ -8,6 +8,7 @@ import '../../../core/widgets/mc.dart';
 import '../providers/trip_realtime_controller.dart';
 import '../services/nav_handoff.dart';
 import '../services/trip_service.dart';
+import 'cancel_job.dart';
 import 'widgets/live_route_map.dart';
 
 /// Leg 1 of the active trip: driving to the rider. Shows the real route to the
@@ -51,6 +52,15 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
               : "Couldn't confirm arrival. Please try again."),
         ));
     }
+  }
+
+  /// Drops the job before the trip starts — see [confirmCancelJob]. Held under
+  /// the same `_busy` flag as arrival so the two can't be fired together.
+  Future<void> _cancelJob() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await confirmCancelJob(context, ref, widget.trip);
+    if (mounted) setState(() => _busy = false);
   }
 
   Future<void> _navigate() async {
@@ -173,6 +183,13 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
                     icon: 'check',
                     kind: BtnKind.green,
                     onTap: _busy ? null : _confirmArrival,
+                  ),
+                  const SizedBox(height: 10),
+                  McDangerButton(
+                    'Cancel job',
+                    icon: 'x',
+                    height: 48,
+                    onTap: _busy ? null : _cancelJob,
                   ),
                 ],
               ),

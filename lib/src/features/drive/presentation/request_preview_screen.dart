@@ -57,8 +57,11 @@ class _RequestPreviewScreenState extends ConsumerState<RequestPreviewScreen> {
         open = await trips.available();
       }
       if (!mounted) return;
+      // A refresh must not undo an Ignore — the board controller is the one
+      // that remembers what this driver has already turned down.
+      final board = ref.read(dispatchBoardProvider.notifier);
       setState(() {
-        _open = open;
+        _open = open.where((t) => !board.isIgnored(t.id)).toList();
         _loading = false;
       });
     } catch (e) {
@@ -70,16 +73,11 @@ class _RequestPreviewScreenState extends ConsumerState<RequestPreviewScreen> {
     }
   }
 
-  /// Deprioritizes a request locally, exactly as the home board does — there's
-  /// no server-side decline in the broadcast model.
+  /// Waves a request away, exactly as the home board does — the controller owns
+  /// the ignored set, this screen just drops it from its own one-shot list too.
   void _ignore(String tripId) {
     ref.read(dispatchBoardProvider.notifier).ignore(tripId);
-    if (_open.length < 2) return;
-    final list = [..._open];
-    final i = list.indexWhere((t) => t.id == tripId);
-    if (i < 0) return;
-    list.add(list.removeAt(i));
-    setState(() => _open = list);
+    setState(() => _open = _open.where((t) => t.id != tripId).toList());
   }
 
   @override
