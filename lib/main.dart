@@ -28,10 +28,14 @@ Future<void> main() async {
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
 
-    // Native crashes and ANRs never reach Dart's error hooks at all — that is
-    // the gap Crashlytics fills, and the Gradle plugin captures them without
-    // any Dart code. Dart-side errors are forwarded through ErrorReporter's
-    // sink list rather than by installing a second pair of handlers: Flutter
+    // Platform-layer (Java/Kotlin) crashes and ANRs never reach Dart's error
+    // hooks at all — that is the gap Crashlytics fills, and it captures them
+    // with no Dart code involved. NDK/C++ crashes are deliberately NOT covered:
+    // those need the separate firebase-crashlytics-ndk artifact, which is not
+    // included, and the built bundle carries no libcrashlytics.so.
+    //
+    // Dart-side errors are forwarded through ErrorReporter's sink list rather
+    // than by installing a second pair of handlers: Flutter
     // has only one FlutterError.onError and one PlatformDispatcher.onError, so
     // a second reporter would replace the first rather than stack with it.
     ErrorReporter.addSink(
