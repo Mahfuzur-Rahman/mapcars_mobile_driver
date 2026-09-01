@@ -51,6 +51,9 @@ const Map<String, IconData> _kIcons = {
   'trend': Icons.trending_up,
   'globe': Icons.language,
   'logout': Icons.logout,
+  'alert': Icons.emergency_outlined,
+  'access': Icons.accessible_outlined,
+  'trash': Icons.delete_outline,
 };
 
 IconData icoData(String name) => _kIcons[name] ?? Icons.circle_outlined;

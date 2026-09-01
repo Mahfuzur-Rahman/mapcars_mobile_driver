@@ -16,6 +16,11 @@ class Brand {
   static const bg = Color(0xFFEBEFF3);
   static const star = Color(0xFFE99400);
 
+  /// Map markers. Cars are painted pearl so they hold their shape on both the
+  /// standard and the night map style — a near-black body disappears at night,
+  /// and a saturated one collides with the green/blue route polyline.
+  static const carPearl = Color(0xFFEDF1F5);
+
   // Error alert tokens
   static const errorBg = Color(0xFFFDF2F2);
   static const errorBorder = Color(0xFFF8B4B4);

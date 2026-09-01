@@ -181,6 +181,16 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
                     ],
                   ),
                   const SizedBox(height: 14),
+                  // Chat was reachable on nav_pickup and arrived but not here,
+                  // so it disappeared for both parties the moment the rider got
+                  // in — exactly when a drop-off change gets asked for.
+                  McGhostButton(
+                    'Message passenger',
+                    icon: 'msg',
+                    height: 48,
+                    onTap: () => context.push('/chat', extra: trip),
+                  ),
+                  const SizedBox(height: 10),
                   McButton(
                     _busy ? 'Completing…' : 'Complete trip',
                     icon: 'check',

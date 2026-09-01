@@ -157,7 +157,29 @@ class _McFieldState extends State<McField> {
 
 enum BtnKind { blue, green, grad }
 
-/// Primary (filled / gradient) button.
+/// Gives a hand-built tappable the semantics a real button would carry.
+///
+/// Every control in this file is a `GestureDetector` wrapping a `Container` —
+/// visually a button, but to TalkBack/VoiceOver just a box with some text in
+/// it, never announced as tappable and never reporting when it is disabled.
+///
+/// [excludeSemantics] is deliberate: the child usually contains the same string
+/// as [label], and without it the label is announced twice.
+Widget mcTapSemantics({
+  required String? label,
+  required bool enabled,
+  bool? selected,
+  required Widget child,
+}) =>
+    Semantics(
+      button: true,
+      enabled: enabled,
+      label: label,
+      selected: selected,
+      excludeSemantics: true,
+      child: child,
+    );
+
 class McButton extends StatelessWidget {
   const McButton(this.label, {super.key, this.icon, this.kind = BtnKind.blue, this.full = true, this.onTap, this.height = 54});
   final String label;
@@ -176,25 +198,29 @@ class McButton extends StatelessWidget {
     };
     // Glow tint follows the button's own colour.
     final Color glow = kind == BtnKind.green ? Brand.green : Brand.blue;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: full ? double.infinity : null,
-        height: height,
-        padding: full ? null : const EdgeInsets.symmetric(horizontal: 22),
-        decoration: BoxDecoration(
-          color: g == null ? Brand.blue : null,
-          gradient: g,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: glow.withValues(alpha: 0.28), blurRadius: 18, offset: const Offset(0, 8))],
-        ),
-        child: Row(
-          mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[Ico(icon!, size: 20, color: Colors.white), const SizedBox(width: 8)],
-            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: tw(FontWeight.w800, 16, Colors.white))),
-          ],
+    return mcTapSemantics(
+      label: label,
+      enabled: onTap != null,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: full ? double.infinity : null,
+          height: height,
+          padding: full ? null : const EdgeInsets.symmetric(horizontal: 22),
+          decoration: BoxDecoration(
+            color: g == null ? Brand.blue : null,
+            gradient: g,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: glow.withValues(alpha: 0.28), blurRadius: 18, offset: const Offset(0, 8))],
+          ),
+          child: Row(
+            mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[Ico(icon!, size: 20, color: Colors.white), const SizedBox(width: 8)],
+              Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: tw(FontWeight.w800, 16, Colors.white))),
+            ],
+          ),
         ),
       ),
     );
@@ -211,24 +237,28 @@ class McGhostButton extends StatelessWidget {
   final double height;
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: full ? double.infinity : null,
-          height: height,
-          padding: full ? null : const EdgeInsets.symmetric(horizontal: 18),
-          decoration: BoxDecoration(
-            color: Brand.paper,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Brand.line, width: 1.5),
-          ),
-          child: Row(
-            mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[Ico(icon!, size: 20, color: Brand.ink), const SizedBox(width: 8)],
-              Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: tw(FontWeight.w800, 16, Brand.ink))),
-            ],
+  Widget build(BuildContext context) => mcTapSemantics(
+        label: label,
+        enabled: onTap != null,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: full ? double.infinity : null,
+            height: height,
+            padding: full ? null : const EdgeInsets.symmetric(horizontal: 18),
+            decoration: BoxDecoration(
+              color: Brand.paper,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Brand.line, width: 1.5),
+            ),
+            child: Row(
+              mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[Ico(icon!, size: 20, color: Brand.ink), const SizedBox(width: 8)],
+                Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: tw(FontWeight.w800, 16, Brand.ink))),
+              ],
+            ),
           ),
         ),
       );
@@ -246,24 +276,28 @@ class McDangerButton extends StatelessWidget {
   static const _red = Color(0xFFDC2626);
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: full ? double.infinity : null,
-          height: height,
-          padding: full ? null : const EdgeInsets.symmetric(horizontal: 18),
-          decoration: BoxDecoration(
-            color: _red.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _red.withValues(alpha: 0.35), width: 1.5),
-          ),
-          child: Row(
-            mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[Ico(icon!, size: 20, color: _red), const SizedBox(width: 8)],
-              Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: tw(FontWeight.w800, 16, _red))),
-            ],
+  Widget build(BuildContext context) => mcTapSemantics(
+        label: label,
+        enabled: onTap != null,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: full ? double.infinity : null,
+            height: height,
+            padding: full ? null : const EdgeInsets.symmetric(horizontal: 18),
+            decoration: BoxDecoration(
+              color: _red.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _red.withValues(alpha: 0.35), width: 1.5),
+            ),
+            child: Row(
+              mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[Ico(icon!, size: 20, color: _red), const SizedBox(width: 8)],
+                Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: tw(FontWeight.w800, 16, _red))),
+              ],
+            ),
           ),
         ),
       );
@@ -276,20 +310,27 @@ class McChip extends StatelessWidget {
   final bool active;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: active ? Brand.blue : Brand.paper,
-            borderRadius: BorderRadius.circular(99),
-            border: Border.all(color: active ? Brand.blue : Brand.line, width: 1.5),
+  Widget build(BuildContext context) => mcTapSemantics(
+        label: label,
+        enabled: onTap != null,
+        // Chips are filters, so their on/off state has to be announced too —
+        // "Economy, selected" rather than just "Economy".
+        selected: active,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: active ? Brand.blue : Brand.paper,
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: active ? Brand.blue : Brand.line, width: 1.5),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (icon != null) ...[Ico(icon!, size: 16, color: active ? Colors.white : Brand.sub), const SizedBox(width: 6)],
+              Text(label, style: tw(FontWeight.w700, 13, active ? Colors.white : Brand.ink)),
+            ]),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (icon != null) ...[Ico(icon!, size: 16, color: active ? Colors.white : Brand.sub), const SizedBox(width: 6)],
-            Text(label, style: tw(FontWeight.w700, 13, active ? Colors.white : Brand.ink)),
-          ]),
         ),
       );
 }
@@ -517,19 +558,42 @@ class _OtpInputState extends State<OtpInput> {
 }
 
 /// Round white floating control (back / menu / avatar buttons over a map).
+/// A round, icon-only button.
+///
+/// Icon-only controls carry no text for a screen reader to fall back on, so
+/// this one resolves a label: [semanticLabel] if given, else [_iconLabels] for
+/// the icon name. An unmapped icon announces nothing rather than reading the
+/// raw key ("chevR") aloud — add it to the map instead of passing it through.
 class McCircleButton extends StatelessWidget {
-  const McCircleButton(this.icon, {super.key, this.color = Brand.ink, this.onTap});
+  const McCircleButton(this.icon, {super.key, this.color = Brand.ink, this.onTap, this.semanticLabel});
   final String icon;
   final Color color;
   final VoidCallback? onTap;
+  final String? semanticLabel;
+
+  /// Labels for the icons this button is actually used with. Keep in sync with
+  /// the driver app's copy.
+  static const _iconLabels = <String, String>{
+    'menu': 'Menu',
+    'back': 'Back',
+    'home': 'Home',
+    'user': 'Account',
+    'search': 'Search',
+    'x': 'Close',
+  };
+
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: const BoxDecoration(color: Brand.paper, shape: BoxShape.circle, boxShadow: Brand.floatShadow),
-          child: Center(child: Ico(icon, size: 22, color: color)),
+  Widget build(BuildContext context) => mcTapSemantics(
+        label: semanticLabel ?? _iconLabels[icon],
+        enabled: onTap != null,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(color: Brand.paper, shape: BoxShape.circle, boxShadow: Brand.floatShadow),
+            child: Center(child: Ico(icon, size: 22, color: color)),
+          ),
         ),
       );
 }
@@ -671,9 +735,9 @@ class McGoogleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null && !loading;
-    return Semantics(
-      button: true,
+    return mcTapSemantics(
       label: label,
+      enabled: enabled,
       child: GestureDetector(
         onTap: enabled ? onTap : null,
         behavior: HitTestBehavior.opaque,

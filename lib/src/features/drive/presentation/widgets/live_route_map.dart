@@ -121,7 +121,10 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
   @override
   void initState() {
     super.initState();
-    drawCarIcon().then((icon) {
+    // Pearl: the route polyline below this marker is green on the pickup leg
+    // and blue on the trip leg, so the car needs a body colour that contrasts
+    // with both rather than matching one of them.
+    drawCarIcon(Brand.carPearl).then((icon) {
       if (mounted) setState(() => _carIcon = icon);
     });
     _startTracking();

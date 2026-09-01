@@ -7,6 +7,9 @@ const _months = [
 String formatShortDate(DateTime d) =>
     '${_weekdays[d.weekday - 1]} ${d.day} ${_months[d.month - 1]}';
 
+/// e.g. "9 Jun 2026".
+String formatLongDate(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
+
 /// e.g. "4:38 PM".
 String formatClockTime(DateTime d) {
   final hour = d.hour % 12 == 0 ? 12 : d.hour % 12;

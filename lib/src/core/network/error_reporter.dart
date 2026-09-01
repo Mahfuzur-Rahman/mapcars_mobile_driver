@@ -39,6 +39,19 @@ class ErrorReporter {
   /// where it happened, not just what happened.
   static String? currentRoute;
 
+  /// Extra sinks notified for every reported error.
+  ///
+  /// Flutter has exactly one [FlutterError.onError] and one
+  /// [PlatformDispatcher.onError]. A second crash reporter that installs its own
+  /// handlers does not stack with this one — it silently replaces it. So
+  /// Crashlytics is attached here instead, from `main()` once Firebase is up,
+  /// and both get every error.
+  static final List<void Function(Object, StackTrace?)> _sinks = [];
+
+  /// Registers a [sink]. Safe to call before or after [install].
+  static void addSink(void Function(Object, StackTrace?) sink) =>
+      _sinks.add(sink);
+
   /// Hooks Flutter's two global error channels. Call once from `main()`.
   static void install() {
     final previousOnError = FlutterError.onError;
@@ -65,6 +78,16 @@ class ErrorReporter {
     if (error is ApiException) return;
 
     if (kDebugMode) debugPrint('[error-report] $error');
+
+    // Sinks see the same filtered stream as the central log — an ApiException
+    // has already been recorded server-side and is not a crash.
+    for (final sink in _sinks) {
+      try {
+        sink(error, stack);
+      } catch (_) {
+        // A failing sink must never break error reporting.
+      }
+    }
 
     unawaited(_send(error, stack, context, level));
   }
