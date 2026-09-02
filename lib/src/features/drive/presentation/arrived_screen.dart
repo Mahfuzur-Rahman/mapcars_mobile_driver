@@ -95,6 +95,8 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
   Widget build(BuildContext context) {
     final trip = widget.trip;
     final riderName = trip.rider?.name ?? 'Your rider';
+    final unread =
+        ref.watch(tripRealtimeProvider.select((s) => s.unreadMessages));
     final rating = trip.rider?.rating;
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
@@ -163,10 +165,15 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
                         // rider phone number (the driver's `Rider` model carries
                         // name + rating only), so it could only ever have been
                         // decorative. Chat is the channel that actually works.
-                        _SquareButton(
-                            icon: 'msg',
-                            semanticLabel: 'Message passenger',
-                            onTap: () => context.push('/chat', extra: trip)),
+                        McBadge(
+                          count: unread,
+                          child: _SquareButton(
+                              icon: 'msg',
+                              semanticLabel: unread == 0
+                                  ? 'Message passenger'
+                                  : 'Message passenger, $unread unread',
+                              onTap: () => context.push('/chat', extra: trip)),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 14),

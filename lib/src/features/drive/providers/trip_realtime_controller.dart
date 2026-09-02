@@ -14,20 +14,32 @@ import 'driver_location_reporting_controller.dart';
 /// Latest rider/system-cancelled trip pushed over realtime, if any — screens
 /// watch this to notice a cancellation that happened out from under them.
 class TripRealtimeState {
-  const TripRealtimeState({this.cancelledTrip, this.chatMessages = const []});
+  const TripRealtimeState({
+    this.cancelledTrip,
+    this.chatMessages = const [],
+    this.unreadMessages = 0,
+  });
   final Trip? cancelledTrip;
 
   /// Chat messages for the active trip — seeded from GET on mount,
   /// appended by messageReceived pushes and local sends.
   final List<ChatMessage> chatMessages;
 
+  /// Messages from the passenger that have arrived since the driver last had
+  /// the chat screen open. Without this the Message button looked identical
+  /// whether nothing or five questions were waiting — and a driver at the
+  /// kerb is not going to open a conversation on the off-chance.
+  final int unreadMessages;
+
   TripRealtimeState copyWith({
     Trip? cancelledTrip,
     List<ChatMessage>? chatMessages,
+    int? unreadMessages,
   }) =>
       TripRealtimeState(
         cancelledTrip: cancelledTrip ?? this.cancelledTrip,
         chatMessages: chatMessages ?? this.chatMessages,
+        unreadMessages: unreadMessages ?? this.unreadMessages,
       );
 }
 
@@ -182,8 +194,15 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
       // by sendMessage — skip it if we see it again from the push.
       final already = state.chatMessages.any((m) => m.id == msg.id);
       if (!already && mounted) {
+        final unread = unreadAfter(
+          current: state.unreadMessages,
+          message: msg,
+          otherParty: 'rider',
+          chatOpen: _chatOpen,
+        );
         state = state.copyWith(
-            chatMessages: [...state.chatMessages, msg]);
+            chatMessages: [...state.chatMessages, msg],
+            unreadMessages: unread);
       }
     } catch (e) {
       if (kDebugMode) debugPrint('[trip-realtime] bad messageReceived payload: $e');
@@ -191,6 +210,21 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
   }
 
   // ── Chat ──────────────────────────────────────────────────────────────────
+
+  /// Whether the chat screen is on top. Messages arriving while it is do not
+  /// count as unread — the driver is already reading them.
+  bool _chatOpen = false;
+
+  /// Called from the chat screen's `initState`. Clears the badge.
+  void markChatOpen() {
+    _chatOpen = true;
+    if (mounted && state.unreadMessages != 0) {
+      state = state.copyWith(unreadMessages: 0);
+    }
+  }
+
+  /// Called from the chat screen's `dispose`.
+  void markChatClosed() => _chatOpen = false;
 
   /// Fetches the full message history for the active trip (called on chat
   /// screen mount). Replaces whatever is in state.

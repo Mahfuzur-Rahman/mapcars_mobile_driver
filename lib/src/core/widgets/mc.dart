@@ -227,18 +227,72 @@ class McButton extends StatelessWidget {
   }
 }
 
+/// A small count bubble pinned to the top-right of [child].
+///
+/// Nothing is drawn at zero, so callers can pass a live count without guarding.
+/// The bubble is [ExcludeSemantics] — a screen reader gets the count from the
+/// wrapped control's own label instead (see `McGhostButton.semanticLabel`),
+/// because a bare "3" announced next to a button is not information.
+class McBadge extends StatelessWidget {
+  const McBadge({super.key, required this.count, required this.child});
+
+  final int count;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count <= 0) return child;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        Positioned(
+          top: -5,
+          right: -5,
+          child: ExcludeSemantics(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              constraints: const BoxConstraints(minWidth: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626),
+                borderRadius: BorderRadius.circular(99),
+                border: Border.all(color: Brand.paper, width: 2),
+              ),
+              child: Text(
+                count > 9 ? '9+' : '$count',
+                textAlign: TextAlign.center,
+                style: tw(FontWeight.w900, 11, Colors.white),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Secondary (outline) button.
 class McGhostButton extends StatelessWidget {
-  const McGhostButton(this.label, {super.key, this.icon, this.full = true, this.onTap, this.height = 54});
+  const McGhostButton(this.label,
+      {super.key,
+      this.icon,
+      this.full = true,
+      this.onTap,
+      this.height = 54,
+      this.semanticLabel});
   final String label;
   final String? icon;
   final bool full;
   final VoidCallback? onTap;
   final double height;
 
+  /// Overrides what a screen reader announces. Used where the visible label
+  /// alone understates the control — an unread count, for instance.
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) => mcTapSemantics(
-        label: label,
+        label: semanticLabel ?? label,
         enabled: onTap != null,
         child: GestureDetector(
           onTap: onTap,

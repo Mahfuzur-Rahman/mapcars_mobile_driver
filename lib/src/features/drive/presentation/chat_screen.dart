@@ -30,14 +30,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
 
+  /// Captured in initState: calling `ref.read` from `dispose` throws once the
+  /// scope is being torn down.
+  late final VoidCallback _markChatClosed;
+
   @override
   void initState() {
     super.initState();
+    final realtime = ref.read(tripRealtimeProvider.notifier);
+    _markChatClosed = realtime.markChatClosed;
+    // Reading the conversation is what marks it read — do it before the
+    // attach/fetch, so a message landing mid-fetch does not raise a badge for
+    // a screen the driver is already looking at.
+    realtime.markChatOpen();
     // Attach before fetching: opened straight from the menu (or after a
     // restart) the controller has no active trip yet, and fetchMessages()
     // would no-op against a null id. Both calls are idempotent mid-trip.
     Future.microtask(() async {
-      final realtime = ref.read(tripRealtimeProvider.notifier);
       await realtime.attach(widget.trip.id);
       await realtime.fetchMessages();
     });
@@ -45,6 +54,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _markChatClosed();
     _ctrl.dispose();
     _scroll.dispose();
     super.dispose();

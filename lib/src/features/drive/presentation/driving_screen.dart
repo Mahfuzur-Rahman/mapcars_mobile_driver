@@ -68,6 +68,8 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
     final trip = widget.trip;
     final progress = _progress;
     final fare = trip.fareAmount;
+    final unread =
+        ref.watch(tripRealtimeProvider.select((s) => s.unreadMessages));
     final showCash = trip.isCash;
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
@@ -184,11 +186,17 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
                   // Chat was reachable on nav_pickup and arrived but not here,
                   // so it disappeared for both parties the moment the rider got
                   // in — exactly when a drop-off change gets asked for.
-                  McGhostButton(
-                    'Message passenger',
-                    icon: 'msg',
-                    height: 48,
-                    onTap: () => context.push('/chat', extra: trip),
+                  McBadge(
+                    count: unread,
+                    child: McGhostButton(
+                      'Message passenger',
+                      icon: 'msg',
+                      height: 48,
+                      semanticLabel: unread == 0
+                          ? 'Message passenger'
+                          : 'Message passenger, $unread unread',
+                      onTap: () => context.push('/chat', extra: trip),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   McButton(
