@@ -1,7 +1,7 @@
 name: mapcars_driver
 description: "Mapcars — UK ride-hailing driver mobile app (Flutter)."
 publish_to: 'none'
-version: 0.1.0+7
+version: 0.1.0+8
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -69,7 +69,7 @@ flutter:
 #   dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: true
-  ios: false   # iOS platform not generated yet (android-only build); flip to true after `flutter create --platforms=ios`
+  ios: true
   image_path: "assets/images/app_icon.png"            # legacy icon (mapcars_logo1 on white)
   min_sdk_android: 21
   remove_alpha_ios: true
