@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../network/api_client.dart';
+import '../permissions/permission_gate.dart';
 
 /// Background isolate handler — must be a top-level function. Nothing to do here
 /// (the OS renders the notification tray for messages with a `notification`
@@ -22,7 +23,9 @@ class PushService {
   Future<void> registerAndListen() async {
     try {
       final messaging = FirebaseMessaging.instance;
-      await messaging.requestPermission();
+      // Queued: this prompt used to race the first map's location prompt on
+      // a fresh install, and Android drops whichever request loses.
+      await PermissionGate.request(messaging.requestPermission);
       final token = await messaging.getToken();
       if (token != null) await _sendToken(token);
       messaging.onTokenRefresh.listen(_sendToken);

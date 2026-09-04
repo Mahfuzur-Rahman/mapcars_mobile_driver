@@ -48,6 +48,14 @@ class _CurrentLocationMapState extends State<CurrentLocationMap> {
 
   GoogleMapController? _controller;
   LatLng? _me;
+
+  /// Whether location permission is actually held. This gates the map's
+  /// my-location layer, and must NOT be hardcoded to `true`: the Android map
+  /// silently skips enabling the blue dot when the platform view is created
+  /// without permission, and never retries, because the Dart-side value never
+  /// changed. Flipping false -> true after the grant is what makes the plugin
+  /// re-apply it — otherwise the dot stays dead until the app is restarted.
+  bool _hasPermission = false;
   String? _error;
   bool _errorOpensSettings = false;
   bool _loading = true;
@@ -75,6 +83,7 @@ class _CurrentLocationMapState extends State<CurrentLocationMap> {
       final me = LatLng(pos.latitude, pos.longitude);
       setState(() {
         _me = me;
+        _hasPermission = true;
         _loading = false;
       });
       widget.onLocated?.call(me);
@@ -106,8 +115,8 @@ class _CurrentLocationMapState extends State<CurrentLocationMap> {
           child: GoogleMap(
             initialCameraPosition:
                 _me == null ? _fallback : CameraPosition(target: _me!, zoom: widget.zoom),
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
+            myLocationEnabled: _hasPermission,
+            myLocationButtonEnabled: _hasPermission,
             zoomControlsEnabled: false,
             mapToolbarEnabled: false,
             markers: widget.markers,
