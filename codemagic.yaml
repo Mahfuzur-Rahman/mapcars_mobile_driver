@@ -1,0 +1,99 @@
+# Codemagic CI/CD pipeline for Mapcars (Driver App) — iOS TestFlight Release
+# For full setup instructions, see Publish/TESTFLIGHT_RELEASE.md
+
+workflows:
+  ios-testflight:
+    name: Mapcars Driver iOS — TestFlight Release
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      groups:
+        - apple_credentials   # APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY
+        - mapcars_secrets     # MAPS_API_KEY, API_BASE_URL, GOOGLE_SERVER_CLIENT_ID
+      vars:
+        BUNDLE_ID: "com.mapcars.mapcarsDriver"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+          source: true
+        - pattern: 'feat/*'
+          include: true
+          source: true
+      cancel_previous_builds: true
+
+    scripts:
+      - name: Generate .env configuration
+        script: |
+          echo "Setting up .env file..."
+          cat <<EOF > .env
+          API_BASE_URL=${API_BASE_URL:-https://gce-test.mapcars.uk}
+          GOOGLE_MAPS_KEY=${MAPS_API_KEY}
+          PLACES_COUNTRIES=${PLACES_COUNTRIES:-}
+          GOOGLE_SERVER_CLIENT_ID=${GOOGLE_SERVER_CLIENT_ID:-}
+          EOF
+          echo ".env successfully written."
+
+      - name: Generate iOS Maps.xcconfig
+        script: |
+          echo "Setting up ios/Flutter/Maps.xcconfig..."
+          mkdir -p ios/Flutter
+          cat <<EOF > ios/Flutter/Maps.xcconfig
+          MAPS_API_KEY=${MAPS_API_KEY}
+          EOF
+          echo "Maps.xcconfig successfully generated."
+
+      - name: Initialize Keychain & Fetch Signing Files
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+
+      - name: Install dependencies
+        script: |
+          flutter packages pub get
+          cd ios
+          pod install --repo-update
+          cd ..
+
+      - name: Determine TestFlight build number
+        script: |
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" 2>/dev/null || echo 0)
+          if [ -z "$LATEST_BUILD_NUMBER" ] || [ "$LATEST_BUILD_NUMBER" -eq 0 ]; then
+            NEXT_BUILD_NUMBER=1
+          else
+            NEXT_BUILD_NUMBER=$(($LATEST_BUILD_NUMBER + 1))
+          fi
+          echo "Latest TestFlight build is: $LATEST_BUILD_NUMBER. Building as build number: $NEXT_BUILD_NUMBER"
+          echo "BUILD_NUMBER=$NEXT_BUILD_NUMBER" >> $CM_ENV
+
+      - name: Flutter build IPA
+        script: |
+          flutter build ipa --release \
+            --build-number=$BUILD_NUMBER \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+
+    publishing:
+      email:
+        recipients:
+          - info@mapcars.uk
+        notify:
+          failure: true
+          success: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        expire_build_submitted_for_review: false
