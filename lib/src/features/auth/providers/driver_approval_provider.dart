@@ -13,13 +13,42 @@ import '../services/driver_auth_service.dart';
 /// thing (a pending banner instead of a dead online switch) rather than letting
 /// the driver toggle into an error.
 class DriverApproval {
-  const DriverApproval({required this.status, required this.isOnline});
+  const DriverApproval({
+    required this.status,
+    required this.isOnline,
+    this.acceptsCash = true,
+    this.acceptsCard = false,
+  });
 
   /// "PendingApproval" | "Approved" | "Suspended" | "Rejected".
   final String status;
 
   /// What the server thinks — the driver may have gone online on another device.
   final bool isOnline;
+
+  /// Which fares this driver can be offered, resolved by the API (the platform
+  /// setting narrowed by any per-driver override). Carried here rather than
+  /// fetched separately because this provider already loads the whole profile
+  /// and throws most of it away.
+  final bool acceptsCash;
+  final bool acceptsCard;
+
+  /// An admin has restricted this driver to one kind of fare. Worth saying out
+  /// loud: their board is thinner than they expect, and an unexplained quiet
+  /// board reads as a broken app, or as dispatch freezing them out.
+  bool get isPaymentRestricted => !(acceptsCash && acceptsCard);
+
+  /// One line explaining the restriction, or null when there is nothing to say.
+  String? get paymentRestrictionNote {
+    if (!isPaymentRestricted) return null;
+    if (acceptsCard && !acceptsCash) {
+      return "You're set to card payments only, so cash requests aren't shown to you.";
+    }
+    if (acceptsCash && !acceptsCard) {
+      return "You're set to cash only, so card requests aren't shown to you.";
+    }
+    return 'No payment methods are enabled for your account — contact Mapcars support.';
+  }
 
   bool get canWork => status == 'Approved';
 
@@ -53,5 +82,10 @@ final driverApprovalProvider = FutureProvider<DriverApproval>((ref) async {
   if (token == null || token == DemoCredentials.token) return DriverApproval.unknown;
 
   final profile = await ref.read(driverAuthServiceProvider).getProfile();
-  return DriverApproval(status: profile.status, isOnline: profile.isOnline);
+  return DriverApproval(
+    status: profile.status,
+    isOnline: profile.isOnline,
+    acceptsCash: profile.acceptsCash,
+    acceptsCard: profile.acceptsCard,
+  );
 });

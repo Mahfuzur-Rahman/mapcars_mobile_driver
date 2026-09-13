@@ -403,6 +403,20 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                                         : 'Go online to start receiving trip requests'),
                                 style: tw(FontWeight.w600, 13, Brand.sub),
                               ),
+                              // Only on an EMPTY board, and only when actually
+                              // restricted. A permanent banner would nag; the
+                              // moment worth explaining is the one where a
+                              // driver is staring at nothing and wondering why.
+                              if (_online &&
+                                  approval.canWork &&
+                                  board.trips.isEmpty &&
+                                  approval.paymentRestrictionNote != null) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  approval.paymentRestrictionNote!,
+                                  style: tw(FontWeight.w600, 12, Brand.faint),
+                                ),
+                              ],
                             ],
                           ),
                         ),
