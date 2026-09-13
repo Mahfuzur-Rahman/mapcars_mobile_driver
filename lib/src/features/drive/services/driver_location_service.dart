@@ -12,7 +12,7 @@ class DriverLocationService {
 
   /// Add/move the driver in the live pool. Pass [tripId] while working an
   /// active trip so the API relays position to that trip's SignalR group
-  /// (the rider's live tracking). Pass [heading] (degrees, 0 = north,
+  /// (the customer's live tracking). Pass [heading] (degrees, 0 = north,
   /// clockwise) when the device has one, so nearby-car map markers can rotate
   /// to face the direction of travel.
   Future<void> push(double lat, double lng, {String? tripId, double? heading}) =>

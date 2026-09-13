@@ -23,7 +23,7 @@ enum TripGateScope {
 /// Guarantees a trip screen a **real** [Trip] before it builds.
 ///
 /// Every trip screen used to take a nullable trip and quietly render invented
-/// content when it got null — a fake rider, a fake address, a fake fare, and a
+/// content when it got null — a fake customer, a fake address, a fake fare, and a
 /// decorative map with no live position. Null now means one of two honest
 /// things instead: we're still asking the API, or the driver genuinely has no
 /// such trip.
@@ -31,7 +31,7 @@ enum TripGateScope {
 /// When the gate resolves the trip itself (rather than receiving it through
 /// `extra`), it also re-arms the realtime attach and the location-push trip id,
 /// so a screen entered from the menu or a deep link still gets cancellations,
-/// chat, and rider-visible position updates.
+/// chat, and customer-visible position updates.
 class TripGate extends ConsumerStatefulWidget {
   const TripGate({
     super.key,

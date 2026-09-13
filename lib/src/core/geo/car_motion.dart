@@ -118,7 +118,7 @@ class CarMotion {
 
   /// How far along the route the car is drawn, or null when it isn't following
   /// one. Callers use this for the remaining distance and the trimmed polyline,
-  /// so both agree with what the rider can actually see.
+  /// so both agree with what the customer can actually see.
   double? get alongMeters {
     if (!_onRoute || _route == null) return null;
     return _fromAlong + (_toAlong - _fromAlong) * _progress + _coastMeters();

@@ -11,7 +11,7 @@ import '../services/trip_service.dart';
 import 'cancel_job.dart';
 import 'widgets/live_route_map.dart';
 
-/// Leg 1 of the active trip: driving to the rider. Shows the real route to the
+/// Leg 1 of the active trip: driving to the customer. Shows the real route to the
 /// pickup with a live ETA, hands turn-by-turn off to the driver's navigation app
 /// of choice, and marks arrival when they get there.
 class NavPickupScreen extends ConsumerStatefulWidget {
@@ -73,13 +73,13 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
     );
   }
 
-  void _callRider() {
-    // The API deliberately doesn't expose the rider's number (see TripRiderInfo)
+  void _callCustomer() {
+    // The API deliberately doesn't expose the customer's number (see TripCustomerInfo)
     // — until a masked-call service is wired up, in-app chat is the channel.
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(const SnackBar(
-        content: Text('Use Message to reach your rider.'),
+        content: Text('Use Message to reach your customer.'),
       ));
   }
 
@@ -147,7 +147,7 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Pickup · ${trip.rider?.name ?? 'your rider'}',
+                          'Pickup · ${trip.customer?.name ?? 'your customer'}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: tw(FontWeight.w900, 15, Brand.ink),
@@ -167,7 +167,7 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
                       _SquareButton(
                           icon: 'phone',
                           semanticLabel: 'Call passenger',
-                          onTap: _callRider),
+                          onTap: _callCustomer),
                       const SizedBox(width: 10),
                       McBadge(
                         count: unread,

@@ -5,7 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 /// Small shared geometry helpers for the map layers.
 ///
 /// These were previously copy-pasted into every widget that drew a moving car,
-/// which is how the rider's own car ended up snapping its heading while the
+/// which is how the customer's own car ended up snapping its heading while the
 /// scenery cars around it turned smoothly — same idea, two implementations,
 /// only one of them finished.
 

@@ -105,7 +105,7 @@ void main() {
     });
 
     test('is interpolated across the glide, not snapped on arrival', () {
-      // The rider's own car used to snap its rotation the instant a fix landed
+      // The customer's own car used to snap its rotation the instant a fix landed
       // and then slide in that direction — it pivoted on the spot.
       final clock = FakeClock();
       final car = CarMotion(clock: clock.call);

@@ -11,7 +11,7 @@ enum TripStatus {
   driverArrived,
   inProgress,
   completed,
-  cancelledByRider,
+  cancelledByCustomer,
   cancelledByDriver,
 
   /// Nobody accepted it before its search window ran out.
@@ -24,23 +24,29 @@ enum TripStatus {
         'DriverArrived' => TripStatus.driverArrived,
         'InProgress' => TripStatus.inProgress,
         'Completed' => TripStatus.completed,
-        'CancelledByRider' => TripStatus.cancelledByRider,
+        // Both spellings, for the length of the Rider -> Customer rename. The
+        // value is persisted in trips."Status", so the API keeps sending the old
+        // one until migration 031 and the new one after. Accepting both means
+        // this build survives the cutover without a store release - which
+        // matters, because a store release is days, not minutes.
+        'CancelledByRider' => TripStatus.cancelledByCustomer,
+        'CancelledByCustomer' => TripStatus.cancelledByCustomer,
         'CancelledByDriver' => TripStatus.cancelledByDriver,
         'Expired' => TripStatus.expired,
         _ => TripStatus.unknown,
       };
 }
 
-/// The rider's public details — mirrors the API's `TripRiderInfo`. Only sent to
+/// The customer's public details — mirrors the API's `TripCustomerInfo`. Only sent to
 /// this trip's own two parties, so it's null on the open dispatch board.
-class TripRider {
-  const TripRider({required this.name, this.rating});
+class TripCustomer {
+  const TripCustomer({required this.name, this.rating});
 
   final String name;
   final double? rating;
 
-  factory TripRider.fromJson(Map<String, dynamic> j) => TripRider(
-        name: j['name'] as String? ?? 'Your rider',
+  factory TripCustomer.fromJson(Map<String, dynamic> j) => TripCustomer(
+        name: j['name'] as String? ?? 'Your customer',
         rating: (j['rating'] as num?)?.toDouble(),
       );
 }
@@ -73,7 +79,7 @@ class Trip {
     this.isNoShow = false,
     this.paymentMethod = 'Cash',
     this.paymentStatus = 'Pending',
-    this.rider,
+    this.customer,
     this.pin,
     this.expiresAtUtc,
   });
@@ -108,9 +114,9 @@ class Trip {
 
   /// Who we're collecting. Null on the open board (the API withholds it until
   /// the trip is yours) and on the history list.
-  final TripRider? rider;
+  final TripCustomer? customer;
 
-  /// The rider's 4-digit meet-up code, confirmed at the kerb before starting.
+  /// The customer's 4-digit meet-up code, confirmed at the kerb before starting.
   /// Null for trips booked before PINs existed, and on the open board.
   final String? pin;
 
@@ -128,7 +134,7 @@ class Trip {
   ({double lat, double lng}) get pickup => (lat: pickupLat, lng: pickupLng);
   ({double lat, double lng}) get dropoff => (lat: dropoffLat, lng: dropoffLng);
 
-  /// Total the rider owes the driver in cash at drop-off (fare + tip).
+  /// Total the customer owes the driver in cash at drop-off (fare + tip).
   double get cashDue => (fareAmount ?? 0) + tipAmount;
 
   factory Trip.fromJson(Map<String, dynamic> j) => Trip(
@@ -160,8 +166,12 @@ class Trip {
         isNoShow: j['isNoShow'] as bool? ?? false,
         paymentMethod: j['paymentMethod'] as String? ?? 'Cash',
         paymentStatus: j['paymentStatus'] as String? ?? 'Pending',
-        rider: j['rider'] is Map<String, dynamic>
-            ? TripRider.fromJson(j['rider'] as Map<String, dynamic>)
+        // 'customer' is the new key; 'rider' is what an API older than the
+        // rename sends. The API emits both during the transition, so preferring
+        // the new one and falling back keeps this build working against either.
+        customer: (j['customer'] ?? j['rider']) is Map<String, dynamic>
+            ? TripCustomer.fromJson(
+                (j['customer'] ?? j['rider']) as Map<String, dynamic>)
             : null,
         pin: j['pin'] as String?,
         expiresAtUtc: j['expiresAtUtc'] == null
@@ -213,7 +223,7 @@ class TripService {
       });
 
   /// `GET /trips/{id}` — one trip in full. Unlike the list endpoints, this one
-  /// carries the party-only fields (rider details and the meet-up PIN), so a
+  /// carries the party-only fields (customer details and the meet-up PIN), so a
   /// trip picked out of [mine] must be re-fetched through here before the
   /// arrived screen can ask for a PIN it would otherwise not have.
   Future<Trip> get(String tripId) => apiCall(() async {
@@ -222,7 +232,7 @@ class TripService {
       });
 
   /// `GET /trips/active` — the signed-in driver's current active job in full
-  /// with rider details and PIN, or null if none.
+  /// with customer details and PIN, or null if none.
   Future<Trip?> getActive() => apiCall(() async {
         try {
           final res = await _dio.get<Map<String, dynamic>>('$_base/active');

@@ -11,7 +11,7 @@ import '../services/trip_service.dart';
 import 'cancel_job.dart';
 import 'widgets/live_route_map.dart';
 
-/// At the kerb: confirm the rider's meet-up PIN, then start the trip.
+/// At the kerb: confirm the customer's meet-up PIN, then start the trip.
 class ArrivedScreen extends ConsumerStatefulWidget {
   const ArrivedScreen({super.key, required this.trip});
 
@@ -94,10 +94,10 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
   @override
   Widget build(BuildContext context) {
     final trip = widget.trip;
-    final riderName = trip.rider?.name ?? 'Your rider';
+    final customerName = trip.customer?.name ?? 'Your customer';
     final unread =
         ref.watch(tripRealtimeProvider.select((s) => s.unreadMessages));
-    final rating = trip.rider?.rating;
+    final rating = trip.customer?.rating;
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
       if (next.cancelledTrip?.id == trip.id) {
@@ -143,7 +143,7 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(riderName,
+                              Text(customerName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: tw(FontWeight.w900, 17, Brand.ink)),
@@ -162,7 +162,7 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
                           ),
                         ),
                         // No phone button: the API deliberately never sends a
-                        // rider phone number (the driver's `Rider` model carries
+                        // customer phone number (the driver's `Customer` model carries
                         // name + rating only), so it could only ever have been
                         // decorative. Chat is the channel that actually works.
                         McBadge(
@@ -193,7 +193,7 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text('No PIN on this trip — confirm the '
-                                  'rider by name before setting off.',
+                                  'customer by name before setting off.',
                                   style: tw(FontWeight.w700, 12.5, Brand.sub)),
                             ),
                           ],
@@ -252,7 +252,7 @@ class _SquareButton extends StatelessWidget {
       );
 }
 
-/// The rider reads their 4-digit code out; the driver keys it in here. This is
+/// The customer reads their 4-digit code out; the driver keys it in here. This is
 /// what proves the person getting in is the person who booked.
 class _PinPad extends StatelessWidget {
   const _PinPad({
@@ -275,7 +275,7 @@ class _PinPad extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            error ? "That PIN doesn't match" : "Confirm rider's PIN",
+            error ? "That PIN doesn't match" : "Confirm customer's PIN",
             style: tw(FontWeight.w700, 12.5, error ? Brand.errorText : Brand.sub),
           ),
           const SizedBox(height: 10),

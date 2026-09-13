@@ -1,9 +1,9 @@
 // The unread-message rule and its badge.
 //
 // Chat was previously invisible until opened: a driver asking "which entrance?"
-// got silence unless the rider happened to look. These pin the two ways that
+// got silence unless the customer happened to look. These pin the two ways that
 // could go wrong in the other direction — badging your own messages, or badging
-// a conversation the rider is already reading.
+// a conversation the customer is already reading.
 
 import 'dart:ui' show Tristate;
 
@@ -25,13 +25,13 @@ Widget _host(Widget child) =>
     MaterialApp(home: Scaffold(body: Center(child: child)));
 
 void main() {
-  group('unreadAfter (driver app: the other party is the rider)', () {
-    test("counts the rider's message when chat is closed", () {
+  group('unreadAfter (driver app: the other party is the customer)', () {
+    test("counts the customer's message when chat is closed", () {
       expect(
         unreadAfter(
             current: 0,
-            message: _msg('rider'),
-            otherParty: 'rider',
+            message: _msg('customer'),
+            otherParty: 'customer',
             chatOpen: false),
         1,
       );
@@ -41,8 +41,8 @@ void main() {
       expect(
         unreadAfter(
             current: 3,
-            message: _msg('rider'),
-            otherParty: 'rider',
+            message: _msg('customer'),
+            otherParty: 'customer',
             chatOpen: true),
         3,
       );
@@ -55,7 +55,7 @@ void main() {
         unreadAfter(
             current: 2,
             message: _msg('driver'),
-            otherParty: 'rider',
+            otherParty: 'customer',
             chatOpen: false),
         2,
       );
@@ -66,8 +66,8 @@ void main() {
       for (var i = 0; i < 4; i++) {
         n = unreadAfter(
             current: n,
-            message: _msg('rider'),
-            otherParty: 'rider',
+            message: _msg('customer'),
+            otherParty: 'customer',
             chatOpen: false);
       }
       expect(n, 4);

@@ -363,7 +363,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                   const McNavHeader(
                       title: 'Upload documents', fallback: '/home', showMenu: false),
                   const SizedBox(height: 8),
-                  Text('We verify these to keep riders safe. JPG, PNG or PDF.',
+                  Text('We verify these to keep customers safe. JPG, PNG or PDF.',
                       style: tw(FontWeight.w600, 14, Brand.sub)),
                 ],
               ),

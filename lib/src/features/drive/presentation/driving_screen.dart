@@ -13,7 +13,7 @@ import '../services/nav_handoff.dart';
 import '../services/trip_service.dart';
 import 'widgets/live_route_map.dart';
 
-/// Leg 2: rider on board, driving to the destination. Live route, live ETA, and
+/// Leg 2: customer on board, driving to the destination. Live route, live ETA, and
 /// the cash to collect on arrival.
 class DrivingScreen extends ConsumerStatefulWidget {
   const DrivingScreen({super.key, required this.trip});
@@ -184,7 +184,7 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
                   ),
                   const SizedBox(height: 14),
                   // Chat was reachable on nav_pickup and arrived but not here,
-                  // so it disappeared for both parties the moment the rider got
+                  // so it disappeared for both parties the moment the customer got
                   // in — exactly when a drop-off change gets asked for.
                   McBadge(
                     count: unread,
@@ -234,7 +234,7 @@ class _CashCollectBanner extends StatelessWidget {
           const Ico('cash', size: 20, color: Brand.green),
           const SizedBox(width: 10),
           Expanded(
-            child: Text('Collect from rider in cash',
+            child: Text('Collect from customer in cash',
                 style: tw(FontWeight.w700, 13, Brand.ink)),
           ),
           Text('£${amount.toStringAsFixed(2)}',

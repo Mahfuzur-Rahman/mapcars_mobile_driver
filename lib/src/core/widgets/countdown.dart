@@ -27,7 +27,7 @@ String formatCountdown(Duration left) {
 /// Rebuilds once a second with the time left until [deadline], measured on the
 /// server's clock (see [ServerClock]).
 ///
-/// Takes a [builder] rather than rendering a fixed style: the rider's search
+/// Takes a [builder] rather than rendering a fixed style: the customer's search
 /// screen and the driver's request card want very different treatments of the
 /// same number, and forcing one look would have each of them re-implementing
 /// the ticking instead.

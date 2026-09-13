@@ -11,13 +11,13 @@ import '../config/env.dart';
 /// sends it as the `access_token` query param, which the API reads for hub auth
 /// (a WebSocket handshake can't carry an Authorization header).
 ///
-/// Two properties matter more than they look, because a rider's whole awareness
+/// Two properties matter more than they look, because a customer's whole awareness
 /// of their trip used to hang off this one connection:
 ///
 /// * **Groups are re-joined on every reconnect.** A SignalR group membership is
 ///   scoped to a *connection id*, and a reconnect always mints a new one. So a
 ///   reconnect silently unsubscribes the client from `trip:{id}` unless it says
-///   `JoinTrip` again — and the server has no way to notice. Riders were losing
+///   `JoinTrip` again — and the server has no way to notice. Customers were losing
 ///   `tripUpdated` (driver arrived, here's your PIN) about a minute into every
 ///   trip because of exactly this, and nothing in the app could recover it.
 /// * **A failed start leaves no wreckage.** `_conn` is only assigned once

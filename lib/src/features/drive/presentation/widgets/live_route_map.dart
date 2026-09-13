@@ -81,7 +81,7 @@ class LiveRouteMap extends ConsumerStatefulWidget {
   final LatLng destination;
   final String destinationLabel;
 
-  /// Pickup legs are drawn green (go get the rider), drop-off legs blue.
+  /// Pickup legs are drawn green (go get the customer), drop-off legs blue.
   final bool isPickup;
 
   /// Called on every GPS fix with fresh route metrics.
@@ -110,7 +110,7 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
   /// the one map in the product that had no interpolation at all.
   final CarMotion _motion = CarMotion();
 
-  /// Repaints while the car is gliding. ~12fps, the same cadence the rider's
+  /// Repaints while the car is gliding. ~12fps, the same cadence the customer's
   /// map runs at, and stopped whenever nothing is moving.
   static const _frameInterval = Duration(milliseconds: 80);
   Timer? _ticker;
