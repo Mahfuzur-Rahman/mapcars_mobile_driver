@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/env.dart';
+import '../utils/server_clock.dart';
 import 'api_exception.dart';
 
 /// Token provider — holds the current JWT.
@@ -138,6 +139,13 @@ final dioProvider = Provider<Dio>((ref) {
           options.headers['Authorization'] = 'Bearer $token';
         }
         handler.next(options);
+      },
+      onResponse: (response, handler) {
+        // Every response carries a Date header, so keeping the server-clock
+        // offset current costs nothing extra. Request countdowns on the board
+        // are measured against it rather than the device clock.
+        ServerClock.syncFrom(response.headers.value('date'));
+        handler.next(response);
       },
       onError: (e, handler) async {
         if (kDebugMode) {

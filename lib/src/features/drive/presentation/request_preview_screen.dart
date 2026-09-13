@@ -105,6 +105,10 @@ class _RequestPreviewScreenState extends ConsumerState<RequestPreviewScreen> {
                     trip: focus,
                     busy: board.busyTripId == focus.id,
                     moreCount: open.length - 1,
+                    expired: board.isExpired(focus.id),
+                    // This screen fetches its own one-shot list, so there is no
+                    // live board to hand the expiry to — the clock simply stops
+                    // offering Accept, and the API refuses it regardless.
                     onAccept: () => acceptTripAndGo(context, ref, focus),
                     onIgnore: () => _ignore(focus.id),
                   )

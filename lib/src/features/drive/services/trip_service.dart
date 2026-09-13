@@ -13,6 +13,9 @@ enum TripStatus {
   completed,
   cancelledByRider,
   cancelledByDriver,
+
+  /// Nobody accepted it before its search window ran out.
+  expired,
   unknown;
 
   static TripStatus fromJson(String? s) => switch (s) {
@@ -23,6 +26,7 @@ enum TripStatus {
         'Completed' => TripStatus.completed,
         'CancelledByRider' => TripStatus.cancelledByRider,
         'CancelledByDriver' => TripStatus.cancelledByDriver,
+        'Expired' => TripStatus.expired,
         _ => TripStatus.unknown,
       };
 }
@@ -71,6 +75,7 @@ class Trip {
     this.paymentStatus = 'Pending',
     this.rider,
     this.pin,
+    this.expiresAtUtc,
   });
 
   final String id;
@@ -108,6 +113,14 @@ class Trip {
   /// The rider's 4-digit meet-up code, confirmed at the kerb before starting.
   /// Null for trips booked before PINs existed, and on the open board.
   final String? pin;
+
+  /// When this request stops being available (`expiresAtUtc`). The board counts
+  /// down to it so a driver can see which jobs are about to go, rather than
+  /// watching cards vanish for no stated reason.
+  ///
+  /// Advisory: whether an accept succeeds is the API's call, made on its own
+  /// clock. Null on trips from before the column existed.
+  final DateTime? expiresAtUtc;
 
   bool get isCash => paymentMethod.toLowerCase() == 'cash';
 
@@ -151,6 +164,9 @@ class Trip {
             ? TripRider.fromJson(j['rider'] as Map<String, dynamic>)
             : null,
         pin: j['pin'] as String?,
+        expiresAtUtc: j['expiresAtUtc'] == null
+            ? null
+            : DateTime.tryParse(j['expiresAtUtc'].toString()),
       );
 }
 

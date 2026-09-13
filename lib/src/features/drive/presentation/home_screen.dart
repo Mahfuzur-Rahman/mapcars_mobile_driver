@@ -454,6 +454,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                 trip: focus,
                 busy: board.busyTripId == focus.id,
                 moreCount: board.trips.length - 1,
+                expired: board.isExpired(focus.id),
+                onExpired: () => ref
+                    .read(dispatchBoardProvider.notifier)
+                    .markExpired(focus.id),
                 onAccept: () => acceptTripAndGo(context, ref, focus),
                 onIgnore: () => _ignoreRequest(focus.id),
               ),
