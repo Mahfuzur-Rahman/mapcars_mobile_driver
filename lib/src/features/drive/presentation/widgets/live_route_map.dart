@@ -1,11 +1,14 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../../core/geo/car_motion.dart';
+import '../../../../core/geo/geo_math.dart';
+import '../../../../core/geo/route_path.dart';
+import '../../../../core/permissions/permission_gate.dart';
 import '../../../../core/theme/brand.dart';
 import '../../../navigate/models/directions_result.dart';
 import '../../../navigate/services/maps_service.dart';
@@ -102,11 +105,22 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
   GoogleMapController? _controller;
   StreamSubscription<Position>? _posSub;
 
-  LatLng? _me;
-  double _bearing = 0;
+  /// Where the car is *drawn*. The driver's own fixes arrive on movement
+  /// rather than on a clock, so without this the car jumped from fix to fix —
+  /// the one map in the product that had no interpolation at all.
+  final CarMotion _motion = CarMotion();
+
+  /// Repaints while the car is gliding. ~12fps, the same cadence the rider's
+  /// map runs at, and stopped whenever nothing is moving.
+  static const _frameInterval = Duration(milliseconds: 80);
+  Timer? _ticker;
+
   BitmapDescriptor? _carIcon;
 
   DirectionsResult? _route;
+
+  /// [_route]'s polyline, prepared for projection and travel along.
+  RoutePath? _path;
   LatLng? _routeFrom;
   DateTime? _routeFetchedAt;
   bool _fetchingRoute = false;
@@ -121,10 +135,14 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
   @override
   void initState() {
     super.initState();
-    drawCarIcon().then((icon) {
+    // Pearl: the route polyline below this marker is green on the pickup leg
+    // and blue on the trip leg, so the car needs a body colour that contrasts
+    // with both rather than matching one of them.
+    drawCarIcon(Brand.carPearl).then((icon) {
       if (mounted) setState(() => _carIcon = icon);
     });
     _startTracking();
+    _ticker = Timer.periodic(_frameInterval, (_) => _onFrame());
   }
 
   @override
@@ -133,18 +151,28 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
     // A new destination (pickup → drop-off) invalidates the whole route.
     if (old.destination != widget.destination) {
       _route = null;
+      _path = null;
+      _motion.route = null;
       _routeFrom = null;
       _routeFetchedAt = null;
-      final me = _me;
+      final me = _motion.position;
       if (me != null) unawaited(_fetchRoute(me));
     }
   }
 
   @override
   void dispose() {
+    _ticker?.cancel();
     _posSub?.cancel();
     _controller?.dispose();
     super.dispose();
+  }
+
+  /// Repaint only while the car is actually gliding, so a driver waiting at a
+  /// pickup isn't rebuilding the map twelve times a second for nothing.
+  void _onFrame() {
+    if (!mounted) return;
+    if (_motion.isMoving) setState(() {});
   }
 
   Future<void> _startTracking() async {
@@ -153,7 +181,14 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
     // not have asked yet.
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      // Queued behind any other permission dialog — Android drops a request
+      // raised while one is already on screen, and geolocator then never
+      // completes this Future at all. See [PermissionGate].
+      try {
+        permission = await PermissionGate.request(Geolocator.requestPermission);
+      } on TimeoutException {
+        return;
+      }
     }
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
@@ -179,15 +214,19 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
     if (!mounted) return;
     final me = LatLng(pos.latitude, pos.longitude);
 
-    setState(() {
-      _me = me;
-      // Hold the last known bearing when the device can't supply one, rather
-      // than snapping the car back to north while it's clearly still moving.
-      if (pos.heading.isFinite && pos.heading >= 0) _bearing = pos.heading;
-    });
+    // Hold the last known bearing when the device can't supply one, rather
+    // than snapping the car back to north while it's clearly still moving.
+    _motion.onFix(
+      me,
+      reportedHeading:
+          pos.heading.isFinite && pos.heading >= 0 ? pos.heading : null,
+    );
+    setState(() {});
 
+    // The progress numbers, the camera and the reroute check all key off the
+    // real fix, not the drawn position — only the marker is interpolated.
     _emitProgress(me);
-    if (_following) _followCamera(me);
+    if (_following) _followCamera(_motion.position ?? me);
 
     if (_shouldRefetch(me)) unawaited(_fetchRoute(me));
   }
@@ -200,7 +239,7 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
     if (since != null && DateTime.now().difference(since) < _rerouteMinGap) {
       return false;
     }
-    return _metersBetween(me, _routeFrom!) >= _rerouteMeters;
+    return metersBetween(me, _routeFrom!) >= _rerouteMeters;
   }
 
   Future<void> _fetchRoute(LatLng from) async {
@@ -212,6 +251,10 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
       if (!mounted) return;
       setState(() {
         _route = route;
+        _path = RoutePath(route.points);
+        // Hand the car the new line to follow. CarMotion rebases onto where it
+        // is currently drawn, so a refetch never teleports it.
+        _motion.route = _path;
         _routeFrom = from;
         _routeFetchedAt = DateTime.now();
         _routeError = null;
@@ -239,9 +282,10 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
     if (onProgress == null) return;
 
     final route = _route;
+    final path = _path;
     final RouteProgress progress;
-    if (route == null || route.points.length < 2) {
-      final straight = _metersBetween(me, widget.destination);
+    if (route == null || path == null || !path.isUsable) {
+      final straight = metersBetween(me, widget.destination);
       final meters = straight * 1.35;
       progress = RouteProgress(
         remainingMeters: meters,
@@ -251,7 +295,8 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
         totalMeters: meters,
       );
     } else {
-      final remaining = _remainingAlongRoute(me, route.points);
+      final remaining = path.remainingFrom(
+          path.project(me, nearAlongMeters: _motion.alongMeters).alongMeters);
       final total = route.distanceMeters.toDouble();
       final ratio = total <= 0 ? 0.0 : (remaining / total).clamp(0.0, 1.0);
 
@@ -267,36 +312,14 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
     });
   }
 
-  /// Metres from [me] to the end of [points], via the nearest point on the line.
-  double _remainingAlongRoute(LatLng me, List<LatLng> points) {
-    final i = _nearestIndex(me, points);
-    var total = _metersBetween(me, points[i]);
-    for (var j = i; j < points.length - 1; j++) {
-      total += _metersBetween(points[j], points[j + 1]);
-    }
-    return total;
-  }
-
-  int _nearestIndex(LatLng me, List<LatLng> points) {
-    var best = 0;
-    var bestDistance = double.infinity;
-    for (var i = 0; i < points.length; i++) {
-      final d = _metersBetween(me, points[i]);
-      if (d < bestDistance) {
-        bestDistance = d;
-        best = i;
-      }
-    }
-    return best;
-  }
-
   Future<void> _followCamera(LatLng me) async {
     final controller = _controller;
     if (controller == null) return;
     _selfMove = true;
     await controller.animateCamera(
       CameraUpdate.newCameraPosition(
-        CameraPosition(target: me, zoom: 16.5, bearing: _bearing, tilt: 45),
+        CameraPosition(
+            target: me, zoom: 16.5, bearing: _motion.heading, tilt: 45),
       ),
     );
     _selfMove = false;
@@ -305,17 +328,22 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
   /// The route ahead only — the leg already driven is dropped so the line
   /// shrinks toward the destination as the trip progresses.
   List<LatLng> _polylineAhead() {
-    final route = _route;
-    final me = _me;
-    if (route == null || route.points.isEmpty) return const [];
-    if (me == null) return route.points;
-    final i = _nearestIndex(me, route.points);
-    return [me, ...route.points.sublist(i)];
+    final path = _path;
+    final me = _motion.position;
+    if (path == null || !path.isUsable) return const [];
+    if (me == null) return path.points;
+
+    // On the route, the line starts exactly under the car. Off it (a wrong
+    // turn, or a route gone stale), join the car to the road so the two do not
+    // read as unrelated.
+    final along = _motion.alongMeters;
+    if (along != null) return path.pointsFrom(along);
+    return [me, ...path.pointsFrom(path.project(me).alongMeters)];
   }
 
   @override
   Widget build(BuildContext context) {
-    final me = _me;
+    final me = _motion.position;
     final ahead = _polylineAhead();
     final legColour = widget.isPickup ? Brand.green : Brand.blue;
 
@@ -345,7 +373,7 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
                 Marker(
                   markerId: const MarkerId('me'),
                   position: me,
-                  rotation: _bearing,
+                  rotation: _motion.heading,
                   anchor: const Offset(0.5, 0.5),
                   flat: true,
                   // Keep the car above the destination pin.
@@ -385,7 +413,7 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
             bottom: 14,
             child: _RecentrePill(onTap: () {
               setState(() => _following = true);
-              final here = _me;
+              final here = _motion.position;
               if (here != null) _followCamera(here);
             }),
           ),
@@ -466,18 +494,3 @@ class _RouteErrorBanner extends StatelessWidget {
         ),
       );
 }
-
-/// Great-circle distance in metres.
-double _metersBetween(LatLng a, LatLng b) {
-  const earthRadius = 6371000.0;
-  final dLat = _radians(b.latitude - a.latitude);
-  final dLng = _radians(b.longitude - a.longitude);
-  final h = math.sin(dLat / 2) * math.sin(dLat / 2) +
-      math.cos(_radians(a.latitude)) *
-          math.cos(_radians(b.latitude)) *
-          math.sin(dLng / 2) *
-          math.sin(dLng / 2);
-  return 2 * earthRadius * math.atan2(math.sqrt(h), math.sqrt(1 - h));
-}
-
-double _radians(double degrees) => degrees * math.pi / 180.0;

@@ -18,7 +18,8 @@ class EarningsScreen extends ConsumerStatefulWidget {
   ConsumerState<EarningsScreen> createState() => _EarningsScreenState();
 }
 
-class _EarningsScreenState extends ConsumerState<EarningsScreen> {
+class _EarningsScreenState extends ConsumerState<EarningsScreen>
+    with WidgetsBindingObserver {
   PayoutAccount? _account;
   bool _loadingAccount = true;
   bool _startingOnboarding = false;
@@ -28,7 +29,30 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadAccount();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Stripe Connect onboarding happens in an external browser, so the driver
+  /// comes back to a screen that has been sitting here the whole time with a
+  /// stale account status — `initState` already ran, and nothing re-checks.
+  /// Until this, finishing onboarding left the "Set up payouts" button still
+  /// showing, and the driver had to know to pull-to-refresh.
+  ///
+  /// Only re-checks while payouts are still disabled: once they are on, the
+  /// answer cannot change back under us, and every resume would be a wasted
+  /// request.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _account?.payoutsEnabled != true) {
+      _loadAccount();
+    }
   }
 
   Future<void> _loadAccount() async {

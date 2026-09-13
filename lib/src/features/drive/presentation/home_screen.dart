@@ -336,7 +336,11 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                       McCircleButton('search',
                           onTap: () => context.push('/set-route')),
                       const SizedBox(width: 6),
-                      McCircleButton('user', onTap: () => context.go('/profile')),
+                      // The shared icon-label map says "Account"; this one goes
+                      // to the driver profile, so name it for what it opens.
+                      McCircleButton('user',
+                          semanticLabel: 'Profile',
+                          onTap: () => context.go('/profile')),
                     ],
                   ),
                 ),
@@ -450,6 +454,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                 trip: focus,
                 busy: board.busyTripId == focus.id,
                 moreCount: board.trips.length - 1,
+                expired: board.isExpired(focus.id),
+                onExpired: () => ref
+                    .read(dispatchBoardProvider.notifier)
+                    .markExpired(focus.id),
                 onAccept: () => acceptTripAndGo(context, ref, focus),
                 onIgnore: () => _ignoreRequest(focus.id),
               ),

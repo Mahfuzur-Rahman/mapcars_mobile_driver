@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -26,8 +27,23 @@ Future<void> main() async {
   try {
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
+
+    // Platform-layer (Java/Kotlin) crashes and ANRs never reach Dart's error
+    // hooks at all — that is the gap Crashlytics fills, and it captures them
+    // with no Dart code involved. NDK/C++ crashes are deliberately NOT covered:
+    // those need the separate firebase-crashlytics-ndk artifact, which is not
+    // included, and the built bundle carries no libcrashlytics.so.
+    //
+    // Dart-side errors are forwarded through ErrorReporter's sink list rather
+    // than by installing a second pair of handlers: Flutter
+    // has only one FlutterError.onError and one PlatformDispatcher.onError, so
+    // a second reporter would replace the first rather than stack with it.
+    ErrorReporter.addSink(
+      (error, stack) => FirebaseCrashlytics.instance
+          .recordError(error, stack, fatal: false),
+    );
   } catch (e) {
-    debugPrint('[push] Firebase init skipped: $e');
+    debugPrint('[firebase] init skipped, crash + push reporting off: $e');
   }
 
   // Resolve on-device prefs once so providers can read them synchronously.

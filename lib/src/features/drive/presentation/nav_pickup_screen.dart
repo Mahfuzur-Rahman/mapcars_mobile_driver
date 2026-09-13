@@ -87,6 +87,8 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
   Widget build(BuildContext context) {
     final trip = widget.trip;
     final progress = _progress;
+    final unread =
+        ref.watch(tripRealtimeProvider.select((s) => s.unreadMessages));
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
       if (next.cancelledTrip?.id == trip.id) {
@@ -162,10 +164,20 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      _SquareButton(icon: 'phone', onTap: _callRider),
-                      const SizedBox(width: 10),
                       _SquareButton(
-                          icon: 'msg', onTap: () => context.push('/chat', extra: trip)),
+                          icon: 'phone',
+                          semanticLabel: 'Call passenger',
+                          onTap: _callRider),
+                      const SizedBox(width: 10),
+                      McBadge(
+                        count: unread,
+                        child: _SquareButton(
+                            icon: 'msg',
+                            semanticLabel: unread == 0
+                                ? 'Message passenger'
+                                : 'Message passenger, $unread unread',
+                            onTap: () => context.push('/chat', extra: trip)),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: McGhostButton(
@@ -202,22 +214,29 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
 }
 
 class _SquareButton extends StatelessWidget {
-  const _SquareButton({required this.icon, this.onTap});
+  const _SquareButton({required this.icon, this.onTap, this.semanticLabel});
   final String icon;
   final VoidCallback? onTap;
 
+  /// Icon-only, so without this it announces nothing at all.
+  final String? semanticLabel;
+
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: Brand.fill,
-            borderRadius: BorderRadius.circular(13),
+  Widget build(BuildContext context) => mcTapSemantics(
+        label: semanticLabel,
+        enabled: onTap != null,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Brand.fill,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Center(child: Ico(icon, size: 22, color: Brand.ink)),
           ),
-          child: Center(child: Ico(icon, size: 22, color: Brand.ink)),
         ),
       );
 }

@@ -4,6 +4,9 @@ plugins {
     id("com.android.application")
     // Firebase (FCM) — reads android/app/google-services.json.
     id("com.google.gms.google-services")
+    // Crashlytics. Without this plugin the SDK still runs, but native
+    // (NDK/Java) crashes arrive de-symbolicated and unreadable.
+    id("com.google.firebase.crashlytics")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }

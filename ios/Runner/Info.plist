@@ -12,6 +12,14 @@
 		     them iOS suspends updates and the car disappears from rider maps. -->
 		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 		<string>While you are online, Mapcars Driver shares your location in the background so riders can see your car and be matched to you.</string>
+		<key>NSLocationAlwaysUsageDescription</key>
+		<string>While you are online, Mapcars Driver shares your location in the background so riders can see your car and be matched to you.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>Mapcars Driver requires camera access to photograph your vehicle, driving licence, and private hire documents for verification.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Mapcars Driver requires photo library access to upload your vehicle and licence documents for verification.</string>
+		<key>ITSAppUsesNonExemptEncryption</key>
+		<false/>
 		<key>UIBackgroundModes</key>
 		<array>
 			<string>location</string>

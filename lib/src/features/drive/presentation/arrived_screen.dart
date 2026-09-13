@@ -95,6 +95,8 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
   Widget build(BuildContext context) {
     final trip = widget.trip;
     final riderName = trip.rider?.name ?? 'Your rider';
+    final unread =
+        ref.watch(tripRealtimeProvider.select((s) => s.unreadMessages));
     final rating = trip.rider?.rating;
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
@@ -159,10 +161,19 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
                             ],
                           ),
                         ),
-                        const _SquareButton(icon: 'phone'),
-                        const SizedBox(width: 8),
-                        _SquareButton(
-                            icon: 'msg', onTap: () => context.push('/chat', extra: trip)),
+                        // No phone button: the API deliberately never sends a
+                        // rider phone number (the driver's `Rider` model carries
+                        // name + rating only), so it could only ever have been
+                        // decorative. Chat is the channel that actually works.
+                        McBadge(
+                          count: unread,
+                          child: _SquareButton(
+                              icon: 'msg',
+                              semanticLabel: unread == 0
+                                  ? 'Message passenger'
+                                  : 'Message passenger, $unread unread',
+                              onTap: () => context.push('/chat', extra: trip)),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -214,22 +225,29 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
 }
 
 class _SquareButton extends StatelessWidget {
-  const _SquareButton({required this.icon, this.onTap});
+  const _SquareButton({required this.icon, this.onTap, this.semanticLabel});
   final String icon;
   final VoidCallback? onTap;
 
+  /// Icon-only, so without this it announces nothing at all.
+  final String? semanticLabel;
+
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Brand.fill,
-            borderRadius: BorderRadius.circular(12),
+  Widget build(BuildContext context) => mcTapSemantics(
+        label: semanticLabel,
+        enabled: onTap != null,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Brand.fill,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(child: Ico(icon, size: 20, color: Brand.ink)),
           ),
-          child: Center(child: Ico(icon, size: 20, color: Brand.ink)),
         ),
       );
 }
