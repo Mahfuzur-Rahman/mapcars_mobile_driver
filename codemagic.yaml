@@ -6,28 +6,38 @@ workflows:
     name: Mapcars Driver iOS — TestFlight Release
     instance_type: mac_mini_m2
     max_build_duration: 60
+    # Must equal the key's name under Integrations → Developer Portal → Manage keys,
+    # character for character. It authenticates both the signing CLI and the upload.
+    integrations:
+      app_store_connect: Mapcars App Store Connect
     environment:
-      flutter: stable
+      flutter: 3.44.2   # the version the app is developed and tested on locally
       xcode: latest
       cocoapods: default
       groups:
-        - apple_credentials   # APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY
-        - mapcars_secrets     # MAPS_API_KEY, API_BASE_URL, GOOGLE_SERVER_CLIENT_ID, FIREBASE_IOS_PLIST, MAPS_API_KEY_IOS
+        # App-level group, one per Codemagic app (FIREBASE_IOS_PLIST differs per app):
+        # CERTIFICATE_PRIVATE_KEY, MAPS_API_KEY, MAPS_API_KEY_IOS, API_BASE_URL,
+        # GOOGLE_SERVER_CLIENT_ID, PLACES_COUNTRIES, FIREBASE_IOS_PLIST, APP_STORE_APPLE_ID
+        - mapcars_secrets
       vars:
         BUNDLE_ID: "com.mapcars.mapcars.driver"
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: 'main'
-          include: true
-          source: true
-        - pattern: 'feat/*'
-          include: true
-          source: true
-      cancel_previous_builds: true
+    # No `triggering` block: builds start only from "Start new build". Every iOS
+    # build costs macOS minutes, so auto-building every push is opt-in, not default.
 
     scripts:
+      - name: Check required secrets
+        script: |
+          # Fail in the first second, listing everything missing at once, instead of
+          # ten minutes in with only the first missing variable named.
+          missing=""
+          for v in CERTIFICATE_PRIVATE_KEY MAPS_API_KEY FIREBASE_IOS_PLIST GOOGLE_SERVER_CLIENT_ID; do
+            if [ -z "$(printenv "$v")" ]; then missing="$missing $v"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "Missing from the mapcars_secrets group:$missing" >&2
+            exit 1
+          fi
+
       - name: Generate .env configuration
         script: |
           echo "Setting up .env file..."
@@ -51,20 +61,27 @@ workflows:
 
       - name: Restore Firebase iOS config
         script: |
-          # GoogleService-Info.plist is gitignored, so CI has to rebuild it from a
-          # secure variable (base64 of the file Firebase hands you). Without it
+          # GoogleService-Info.plist is gitignored, so CI rebuilds it from a secure
+          # variable (base64 of the file Firebase hands you). Without it
           # Firebase.initializeApp() throws at launch and push dies *silently* —
-          # main.dart swallows the failure so the app still runs. Fail here instead.
-          if [ -z "$FIREBASE_IOS_PLIST" ]; then
-            echo "FIREBASE_IOS_PLIST is not set - add it to the mapcars_secrets group as base64." >&2
-            exit 1
-          fi
+          # main.dart swallows the failure so the app still runs.
           echo "$FIREBASE_IOS_PLIST" | base64 --decode > ios/Runner/GoogleService-Info.plist
           plutil -lint ios/Runner/GoogleService-Info.plist
-          echo "GoogleService-Info.plist restored for $(plutil -extract BUNDLE_ID raw ios/Runner/GoogleService-Info.plist)."
+          PLIST_BUNDLE_ID=$(plutil -extract BUNDLE_ID raw ios/Runner/GoogleService-Info.plist)
+          # The customer and driver plists look identical at a glance; pasting the
+          # wrong app's one builds fine and then never receives a single push.
+          if [ "$PLIST_BUNDLE_ID" != "$BUNDLE_ID" ]; then
+            echo "FIREBASE_IOS_PLIST is for $PLIST_BUNDLE_ID, but this app is $BUNDLE_ID." >&2
+            exit 1
+          fi
+          echo "GoogleService-Info.plist restored for $PLIST_BUNDLE_ID."
 
       - name: Initialize Keychain & Fetch Signing Files
         script: |
+          # --create makes the distribution certificate (from CERTIFICATE_PRIVATE_KEY)
+          # and the App Store profile on first run, and reuses them afterwards. The
+          # profile copies the App ID's capabilities, so Push Notifications and Sign
+          # in with Apple must be enabled on the App ID *before* the first build.
           keychain initialize
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
@@ -79,21 +96,31 @@ workflows:
           pod install --repo-update
           cd ..
 
-      - name: Determine TestFlight build number
+      - name: Pick the TestFlight build number
         script: |
-          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" 2>/dev/null || echo 0)
-          if [ -z "$LATEST_BUILD_NUMBER" ] || [ "$LATEST_BUILD_NUMBER" -eq 0 ]; then
-            NEXT_BUILD_NUMBER=1
-          else
-            NEXT_BUILD_NUMBER=$(($LATEST_BUILD_NUMBER + 1))
+          # Apple rejects any upload whose build number isn't above every earlier one.
+          # The TestFlight lookup takes the app's numeric Apple ID (App Store Connect →
+          # App Information), not the bundle ID.
+          LATEST=""
+          if [ -n "$APP_STORE_APPLE_ID" ]; then
+            LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID") || LATEST=""
           fi
-          echo "Latest TestFlight build is: $LATEST_BUILD_NUMBER. Building as build number: $NEXT_BUILD_NUMBER"
-          echo "BUILD_NUMBER=$NEXT_BUILD_NUMBER" >> $CM_ENV
+          case "$LATEST" in
+            ''|*[!0-9]*)
+              # Nothing on TestFlight yet, or no APP_STORE_APPLE_ID. Codemagic's own
+              # counter rises on every build, so it is always above earlier uploads.
+              NEXT_BUILD_NUMBER=$BUILD_NUMBER
+              echo "No TestFlight build number found; using Codemagic build #$NEXT_BUILD_NUMBER." ;;
+            *)
+              NEXT_BUILD_NUMBER=$((LATEST + 1))
+              echo "Latest TestFlight build is $LATEST; building $NEXT_BUILD_NUMBER." ;;
+          esac
+          echo "NEXT_BUILD_NUMBER=$NEXT_BUILD_NUMBER" >> $CM_ENV
 
       - name: Flutter build IPA
         script: |
           flutter build ipa --release \
-            --build-number=$BUILD_NUMBER \
+            --build-number=$NEXT_BUILD_NUMBER \
             --export-options-plist=/Users/builder/export_options.plist
 
     artifacts:
@@ -110,5 +137,7 @@ workflows:
           success: true
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
-        expire_build_submitted_for_review: false
+        # Internal testers get every processed build without this. `true` also
+        # submits to Beta App Review, which external testers need and which fails
+        # until the TestFlight "Test Information" page is filled in.
+        submit_to_testflight: false
