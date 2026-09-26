@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/notifications/push_tap_navigator.dart';
 import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
 
@@ -21,9 +22,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   /// Restore any persisted session, then route the driver to the right place.
   Future<void> _boot() async {
+    // Captured up front: the driver can tap past the splash, and `ref` is gone
+    // once it unmounts — but a held notification tap still has to be released.
+    final taps = ref.read(pushTapProvider);
     await ref.read(authNotifierProvider.notifier).restore();
     await Future<void>.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
+    // A notification that launched the app is only acted on now, with the
+    // session settled — acting any earlier raced the restore. If it took the
+    // driver somewhere, going home here would throw that away.
+    final routedByTap = await taps.sessionReady();
+    if (!mounted || routedByTap) return;
     final loggedIn = ref.read(authNotifierProvider).isAuthenticated;
     context.go(loggedIn ? '/home' : '/intro');
   }

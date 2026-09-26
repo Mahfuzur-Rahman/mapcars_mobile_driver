@@ -85,6 +85,16 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
   /// cancellation arriving later still has to reach the driver.
   void forgetOwnCancellation() => _selfCancelledTripId = null;
 
+  /// The trip this controller is watching, if any — i.e. the one a trip screen
+  /// is showing. Read by notification-tap routing to decide whether a pushed
+  /// cancellation is for the job already on screen.
+  String? get activeTripId => _activeTripId;
+
+  /// Re-read the active trip now rather than at the next watchdog tick. Goes
+  /// through the same [_absorb] funnel as the socket and the poll, so the trip
+  /// screen reacts exactly as it would to a pushed `tripUpdated`.
+  Future<void> recheck() => _refreshTrip();
+
   /// Idempotent: a no-op if already attached to this trip.
   Future<void> attach(String tripId) async {
     if (_activeTripId == tripId) return;

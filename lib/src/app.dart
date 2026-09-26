@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/network/api_client.dart';
 import 'core/notifications/push_service.dart';
+import 'core/notifications/push_tap.dart';
+import 'core/notifications/push_tap_navigator.dart';
 import 'core/notifications/request_alerts.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -24,17 +26,22 @@ class MapcarsDriverApp extends ConsumerStatefulWidget {
 class _MapcarsDriverAppState extends ConsumerState<MapcarsDriverApp>
     with WidgetsBindingObserver {
   StreamSubscription<RemoteMessage>? _fcm;
+  StreamSubscription<RemoteMessage>? _fcmOpened;
+  StreamSubscription<Map<String, dynamic>>? _localTaps;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _listenForPushedRequests();
+    _listenForNotificationTaps();
   }
 
   @override
   void dispose() {
     _fcm?.cancel();
+    _fcmOpened?.cancel();
+    _localTaps?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -64,6 +71,48 @@ class _MapcarsDriverAppState extends ConsumerState<MapcarsDriverApp>
       // No Firebase in this build — SignalR and the board's own poll still work.
       if (kDebugMode) debugPrint('[push] foreground listener skipped: $e');
     }
+  }
+
+  /// Tapping a notification used to just bring the app forward. Every tap path
+  /// now feeds the same rule ([pushTapFor]) and the same dispatcher, which
+  /// holds taps until the splash has restored the session:
+  ///
+  ///  * **backgrounded** — FCM's `onMessageOpenedApp`;
+  ///  * **killed** — FCM's `getInitialMessage()`, or the launch details of one
+  ///    of our own local alerts; read once, here, and held;
+  ///  * **foreground** — Android shows nothing for FCM in the foreground, so
+  ///    the tappable thing is our own [RequestAlerts] banner, whose payload is
+  ///    shaped like the push.
+  void _listenForNotificationTaps() {
+    final taps = ref.read(pushTapProvider);
+    final alerts = ref.read(requestAlertsProvider);
+    void route(Map<String, dynamic> data) => unawaited(taps.tap(pushTapFor(data)));
+
+    _localTaps = alerts.taps.listen(route);
+    try {
+      _fcmOpened = FirebaseMessaging.onMessageOpenedApp
+          .listen((message) => route(message.data));
+    } catch (e) {
+      if (kDebugMode) debugPrint('[push] tap listener skipped: $e');
+    }
+    unawaited(_consumeLaunchTap(route, alerts));
+  }
+
+  Future<void> _consumeLaunchTap(
+    void Function(Map<String, dynamic>) route,
+    RequestAlerts alerts,
+  ) async {
+    RemoteMessage? initial;
+    try {
+      initial = await FirebaseMessaging.instance.getInitialMessage();
+    } catch (e) {
+      // No Firebase in this build — our own alerts can still have launched us.
+      if (kDebugMode) debugPrint('[push] initial message skipped: $e');
+    }
+    if (initial != null) return route(initial.data);
+
+    final local = await alerts.launchPayload();
+    if (local != null) route(local);
   }
 
   /// A working driver has the screen off in a cradle for most of a job, and

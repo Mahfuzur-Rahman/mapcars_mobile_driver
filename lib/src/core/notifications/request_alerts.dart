@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -29,6 +32,14 @@ class RequestAlerts {
       FlutterLocalNotificationsPlugin();
   bool _ready = false;
 
+  final StreamController<Map<String, dynamic>> _taps =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  /// Payloads of our own notifications as the driver taps them while the app
+  /// is running (foreground or background). Each carries the same
+  /// `type`/`tripId` keys as the FCM push, so one routing rule serves both.
+  Stream<Map<String, dynamic>> get taps => _taps.stream;
+
   /// Trip ids already announced. A driver who has been online for hours
   /// accumulates a handful of these; they are ~36 bytes each, so this is
   /// bounded in practice by the shift, not by traffic.
@@ -37,10 +48,16 @@ class RequestAlerts {
   Future<void> _ensureReady() async {
     if (_ready) return;
     try {
-      await _plugin.initialize(const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        iOS: DarwinInitializationSettings(),
-      ));
+      await _plugin.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          iOS: DarwinInitializationSettings(),
+        ),
+        onDidReceiveNotificationResponse: (response) {
+          final data = _decode(response.payload);
+          if (data != null) _taps.add(data);
+        },
+      );
 
       // Max importance so Android renders a heads-up banner with sound. A
       // silent tray entry is worthless to someone waiting between jobs — the
@@ -80,7 +97,33 @@ class RequestAlerts {
       id: 9000 + (tripId.hashCode.abs() % 1000),
       title: fare == null ? 'New ride request' : 'New ride request · $fare',
       body: where,
+      // Shaped like the FCM push, so a tap routes to the board either way.
+      payload: jsonEncode({'type': 'tripAvailable', 'tripId': tripId}),
     );
+  }
+
+  /// The payload of the notification that launched the app from killed, if it
+  /// was one of ours — the running-app [taps] stream can't see that one.
+  /// Null on a normal launch, and on any failure.
+  Future<Map<String, dynamic>?> launchPayload() async {
+    try {
+      final details = await _plugin.getNotificationAppLaunchDetails();
+      if (details == null || !details.didNotificationLaunchApp) return null;
+      return _decode(details.notificationResponse?.payload);
+    } catch (e) {
+      if (kDebugMode) debugPrint('[requests] launch details failed: $e');
+      return null;
+    }
+  }
+
+  static Map<String, dynamic>? _decode(String? payload) {
+    if (payload == null || payload.isEmpty) return null;
+    try {
+      final data = jsonDecode(payload);
+      return data is Map<String, dynamic> ? data : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Forget [tripId], so if it somehow comes back on the board it can alert
@@ -91,6 +134,7 @@ class RequestAlerts {
     required int id,
     required String title,
     required String body,
+    String? payload,
   }) async {
     await _ensureReady();
     if (!_ready) return;
@@ -112,6 +156,7 @@ class RequestAlerts {
           ),
           iOS: DarwinNotificationDetails(),
         ),
+        payload: payload,
       );
       await HapticFeedback.heavyImpact();
     } catch (e) {
