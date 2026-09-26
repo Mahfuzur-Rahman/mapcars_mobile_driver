@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'app_config.dart';
@@ -13,9 +15,19 @@ class Env {
   /// Google Maps key used for the Places + Directions web services (address
   /// autocomplete and routing). Needs the Places API, Directions API and
   /// Geocoding API enabled, and the key must allow web-service calls.
-  /// Falls back to the native Android Maps key if a dedicated one isn't set.
-  static String get googleMapsKey =>
-      dotenv.maybeGet('GOOGLE_MAPS_KEY') ?? dotenv.maybeGet('MAPS_API_KEY') ?? '';
+  ///
+  /// Per platform, because a Google key's *Application restrictions* is a single
+  /// choice — **Android apps** or **iOS apps**, never both — so one restricted
+  /// key cannot serve both stores. `GOOGLE_MAPS_KEY_IOS` is the iOS-restricted
+  /// key (the same one the native SDK reads from `Maps.xcconfig`); without it
+  /// set, iOS falls back to the shared key so nothing breaks mid-migration.
+  static String get googleMapsKey {
+    if (Platform.isIOS) {
+      final iosKey = dotenv.maybeGet('GOOGLE_MAPS_KEY_IOS') ?? '';
+      if (iosKey.isNotEmpty) return iosKey;
+    }
+    return dotenv.maybeGet('GOOGLE_MAPS_KEY') ?? dotenv.maybeGet('MAPS_API_KEY') ?? '';
+  }
 
   /// OAuth 2.0 **Web** client ID (…apps.googleusercontent.com) passed to
   /// google_sign_in as `serverClientId` — it's what makes Google mint an ID

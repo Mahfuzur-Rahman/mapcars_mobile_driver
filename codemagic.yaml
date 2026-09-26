@@ -12,9 +12,9 @@ workflows:
       cocoapods: default
       groups:
         - apple_credentials   # APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY
-        - mapcars_secrets     # MAPS_API_KEY, API_BASE_URL, GOOGLE_SERVER_CLIENT_ID
+        - mapcars_secrets     # MAPS_API_KEY, API_BASE_URL, GOOGLE_SERVER_CLIENT_ID, FIREBASE_IOS_PLIST, MAPS_API_KEY_IOS
       vars:
-        BUNDLE_ID: "com.mapcars.mapcarsDriver"
+        BUNDLE_ID: "com.mapcars.mapcars.driver"
     triggering:
       events:
         - push
@@ -34,6 +34,7 @@ workflows:
           cat <<EOF > .env
           API_BASE_URL=${API_BASE_URL:-https://gce-test.mapcars.uk}
           GOOGLE_MAPS_KEY=${MAPS_API_KEY}
+          GOOGLE_MAPS_KEY_IOS=${MAPS_API_KEY_IOS:-}
           PLACES_COUNTRIES=${PLACES_COUNTRIES:-}
           GOOGLE_SERVER_CLIENT_ID=${GOOGLE_SERVER_CLIENT_ID:-}
           EOF
@@ -44,9 +45,23 @@ workflows:
           echo "Setting up ios/Flutter/Maps.xcconfig..."
           mkdir -p ios/Flutter
           cat <<EOF > ios/Flutter/Maps.xcconfig
-          MAPS_API_KEY=${MAPS_API_KEY}
+          MAPS_API_KEY=${MAPS_API_KEY_IOS:-$MAPS_API_KEY}
           EOF
           echo "Maps.xcconfig successfully generated."
+
+      - name: Restore Firebase iOS config
+        script: |
+          # GoogleService-Info.plist is gitignored, so CI has to rebuild it from a
+          # secure variable (base64 of the file Firebase hands you). Without it
+          # Firebase.initializeApp() throws at launch and push dies *silently* —
+          # main.dart swallows the failure so the app still runs. Fail here instead.
+          if [ -z "$FIREBASE_IOS_PLIST" ]; then
+            echo "FIREBASE_IOS_PLIST is not set - add it to the mapcars_secrets group as base64." >&2
+            exit 1
+          fi
+          echo "$FIREBASE_IOS_PLIST" | base64 --decode > ios/Runner/GoogleService-Info.plist
+          plutil -lint ios/Runner/GoogleService-Info.plist
+          echo "GoogleService-Info.plist restored for $(plutil -extract BUNDLE_ID raw ios/Runner/GoogleService-Info.plist)."
 
       - name: Initialize Keychain & Fetch Signing Files
         script: |

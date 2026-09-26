@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Must match the provisioning profile: the sandbox APNs for Debug/Profile
+	     builds, Apple's production APNs for anything archived for TestFlight or
+	     the App Store. Without this entitlement registration fails at runtime
+	     ("no valid aps-environment entitlement") no matter what the App ID says. -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -7,6 +9,11 @@ import '../../../core/utils/polyline_codec.dart';
 import '../models/directions_result.dart';
 import '../models/place.dart';
 import '../models/place_prediction.dart';
+
+/// This app's iOS bundle identifier, mirrored from
+/// `ios/Runner.xcodeproj/project.pbxproj`. `test/ios_key_restriction_test.dart`
+/// asserts the two never drift apart.
+const String kIosBundleId = 'com.mapcars.mapcars.driver';
 
 /// Raised when a Google Maps web-service call can't be completed — carries a
 /// user-facing [message] the search UI can show directly.
@@ -27,7 +34,16 @@ class GoogleMapsService {
               baseUrl: 'https://maps.googleapis.com/maps/api',
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 10),
+              headers: _appRestrictionHeaders(),
             ));
+
+  /// Google honours an *iOS apps* restriction on the **web-service** APIs only
+  /// when the caller names itself in this header. The native SDKs add it
+  /// automatically; a plain HTTP client does not, so an iOS-restricted key
+  /// would answer every Places/Directions call with `REQUEST_DENIED` while the
+  /// map itself — which goes through the SDK — carried on working.
+  static Map<String, String> _appRestrictionHeaders() =>
+      Platform.isIOS ? const {'X-Ios-Bundle-Identifier': kIosBundleId} : const {};
 
   final Dio _dio;
 
