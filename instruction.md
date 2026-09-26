@@ -3,20 +3,29 @@
 Flutter **driver** mobile app (`mapcars_driver`). Feature-first structure under
 `lib/src/`. Talks **only** to the Mapcars .NET API.
 
-> ✅ Flutter is installed, native folders (`android/`, `web/`) are generated, and
-> all **16 driver screens** are built as a clickable/swipeable **UI prototype**
-> (no backend wired yet — sample data is hardcoded). Just run it (section 5).
+> Flutter is installed and the native folders (`android/`, `ios/`, `web/`) are
+> generated. Every screen is wired to the **real API** — there is no offline
+> demo account and no hardcoded sample data. Signing in, approval, trips,
+> earnings and statements all need the API running (section 4).
 
-## The prototype
-- Opens on **Splash → Intro (swipe) → Verify → Registration → Documents →
-  Under review → Continue to app → Home**.
-- From **Home** (online toggle) tap the waiting card to simulate an incoming
-  **request → navigate → arrived → driving → trip complete**. Tabs reach
-  **Earnings / Profile / Settings**.
-- The splash has a **"Browse all screens"** link (route `/screens`) to jump to
-  any screen directly.
+## What the app does
+- **Onboarding:** Splash → Intro → sign in / sign up (phone OTP, email,
+  Google; Apple on iOS) → Registration → Documents → Under review. A new
+  driver can't go online or see requests until an **admin approves** them in
+  the admin portal — the app never assumes approval.
+- **Driving:** Home (online toggle + live requests board, fed by SignalR with
+  a REST fallback) → accept → navigate to pickup → arrived (PIN) → driving →
+  trip complete. Turn-by-turn is a handoff to Google Maps / Waze.
+- **Account:** Earnings (this UK week, from your completed trips), weekly
+  **Statements** (what Mapcars pays you / what you owe on cash trips),
+  Payouts (Stripe Connect), Trip history, Profile / Vehicle / Tier appeal,
+  Documents, Settings.
+- **Push:** FCM for new requests, cancellations, chat and tier-appeal
+  decisions; tapping a notification opens the matching screen.
+- Dev builds (`APP_ENV=local`) add a walk-through menu and a `/screens` index;
+  trip screens entered that way load your real trip, or say there isn't one.
 - Same design system as the customer app (`lib/src/core/`); screens are in
-  `lib/src/features/<onboarding|drive|account>/presentation/`.
+  `lib/src/features/<feature>/presentation/`.
 
 ## 1. Install Flutter (already done on this machine)
 
