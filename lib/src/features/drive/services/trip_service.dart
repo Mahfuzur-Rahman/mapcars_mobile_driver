@@ -107,8 +107,10 @@ class Trip {
   final String? cancelledReason;
   final bool isNoShow;
 
-  /// Payment method ('Cash' | 'Card') and settlement state
-  /// ('Pending' | 'Collected' | 'Failed'), from the API's `TripResponse`.
+  /// Payment method ('Cash' | 'Card') and settlement state, from the API's
+  /// `TripResponse`. A driver only ever sees 'Pending' | 'Collected' |
+  /// 'Voided': a declined customer card is the platform's problem, never the
+  /// driver's — they are paid regardless — so the API hides it from them.
   final String paymentMethod;
   final String paymentStatus;
 
@@ -128,7 +130,14 @@ class Trip {
   /// clock. Null on trips from before the column existed.
   final DateTime? expiresAtUtc;
 
-  bool get isCash => paymentMethod.toLowerCase() == 'cash';
+  // Case-insensitive: the API sends 'Cash'/'Card', but a method that stops
+  // matching would silently drop the driver's "collect" / "nothing to collect"
+  // line rather than throw.
+  bool get isCash => paymentMethod.trim().toLowerCase() == 'cash';
+
+  /// Charged to the customer's card by the platform — nothing for the driver
+  /// to collect at drop-off.
+  bool get isCard => paymentMethod.trim().toLowerCase() == 'card';
 
   /// Pickup / drop-off as map coordinates.
   ({double lat, double lng}) get pickup => (lat: pickupLat, lng: pickupLng);

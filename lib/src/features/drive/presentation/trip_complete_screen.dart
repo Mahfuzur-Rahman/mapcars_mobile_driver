@@ -8,6 +8,7 @@ import '../../../core/widgets/mc.dart';
 import '../providers/fare_chart_provider.dart';
 import '../services/rating_service.dart';
 import '../services/trip_service.dart';
+import 'widgets/drop_off_payment.dart';
 
 class TripCompleteScreen extends ConsumerStatefulWidget {
   const TripCompleteScreen({super.key, required this.trip});
@@ -66,6 +67,9 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
   Widget build(BuildContext context) {
     final trip = widget.trip;
     final isCash = trip.isCash;
+    // Null for a method this build doesn't know — better no line than a
+    // "collected" claim that might be wrong.
+    final paymentLine = completedPaymentLine(trip);
     final feePercent =
         ref.watch(fareChartProvider).asData?.value.driverFeePercent ?? 15.0;
 
@@ -151,26 +155,27 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
                             style: tw(FontWeight.w900, 18, Brand.green)),
                       ],
                     ),
-                    Container(
-                      margin: const EdgeInsets.only(top: 12),
-                      padding: const EdgeInsets.only(top: 12),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          top: BorderSide(color: Brand.fill, width: 1),
+                    if (paymentLine != null)
+                      Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.only(top: 12),
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            top: BorderSide(color: Brand.fill, width: 1),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Ico(isCash ? 'cash' : 'card',
+                                size: 18, color: Brand.sub),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(paymentLine,
+                                  style: tw(FontWeight.w700, 13, Brand.sub)),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          Ico(isCash ? 'cash' : 'card', size: 18, color: Brand.sub),
-                          const SizedBox(width: 8),
-                          Text(
-                              isCash
-                                  ? 'Collected ${formatGbp((trip.cashDue * 100).round())} in cash'
-                                  : 'Paid by card · added to balance',
-                              style: tw(FontWeight.w700, 13, Brand.sub)),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),

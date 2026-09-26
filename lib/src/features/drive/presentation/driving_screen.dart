@@ -11,10 +11,11 @@ import '../providers/driver_location_reporting_controller.dart';
 import '../providers/trip_realtime_controller.dart';
 import '../services/nav_handoff.dart';
 import '../services/trip_service.dart';
+import 'widgets/drop_off_payment.dart';
 import 'widgets/live_route_map.dart';
 
 /// Leg 2: customer on board, driving to the destination. Live route, live ETA, and
-/// the cash to collect on arrival.
+/// what (if anything) to collect on arrival.
 class DrivingScreen extends ConsumerStatefulWidget {
   const DrivingScreen({super.key, required this.trip});
 
@@ -70,7 +71,9 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
     final fare = trip.fareAmount;
     final unread =
         ref.watch(tripRealtimeProvider.select((s) => s.unreadMessages));
-    final showCash = trip.isCash;
+    // Cash says what to collect; card says there is nothing to. Unknown methods
+    // show neither — see [DropOffPaymentBanner].
+    final showPayment = trip.isCash || trip.isCard;
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
       if (next.cancelledTrip?.id == trip.id) {
@@ -158,8 +161,8 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  if (showCash) ...[
-                    _CashCollectBanner(amount: trip.cashDue),
+                  if (showPayment) ...[
+                    DropOffPaymentBanner(trip: trip),
                     const SizedBox(height: 12),
                   ],
                   Row(
@@ -209,36 +212,6 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Shown during a cash trip so the driver knows to collect the fare (+ tip) in
-/// person at drop-off before completing — no card charge happens for cash.
-class _CashCollectBanner extends StatelessWidget {
-  const _CashCollectBanner({required this.amount});
-  final double amount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Brand.green.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Ico('cash', size: 20, color: Brand.green),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text('Collect from customer in cash',
-                style: tw(FontWeight.w700, 13, Brand.ink)),
-          ),
-          Text('£${amount.toStringAsFixed(2)}',
-              style: tw(FontWeight.w900, 16, Brand.green)),
         ],
       ),
     );
