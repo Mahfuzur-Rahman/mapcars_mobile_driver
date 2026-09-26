@@ -52,7 +52,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   }
 
   /// A driver whose app was killed mid-job lands here instead of on their
-  /// active trip. Re-arm location relaying (otherwise the rider's map freezes
+  /// active trip. Re-arm location relaying (otherwise the customer's map freezes
   /// for the rest of the ride) and put them back on the right screen.
   Future<void> _resumeActiveTrip() async {
     Trip? active;
@@ -83,7 +83,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
 
     // Re-arm location relaying before navigating away. This screen's
     // `_onLocated` is what normally starts it, and we're about to leave before
-    // it ever fires — without this the rider's map freezes for the rest of the
+    // it ever fires — without this the customer's map freezes for the rest of the
     // ride. Both calls are idempotent.
     final reporting = ref.read(driverLocationReportingProvider);
     reporting.setActiveTrip(active.id);
@@ -133,7 +133,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
 
     if (!value) {
       // Stop pushing first: that DELETEs this driver from the live pool, so the
-      // car leaves riders' maps immediately rather than lingering for the 60s
+      // car leaves customers' maps immediately rather than lingering for the 60s
       // staleness window.
       await ref.read(driverLocationReportingProvider).stop();
       await ref.read(dispatchBoardProvider.notifier).stop();
@@ -142,7 +142,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     // Persist availability to the backend. Going online this MUST land before
     // the first location push: the API drops (and evicts) any push from a
     // driver it still has as offline, so starting first would throw the
-    // opening fixes away and keep the car off riders' maps.
+    // opening fixes away and keep the car off customers' maps.
     if (token != null) {
       try {
         await ref.read(driverAuthServiceProvider).setAvailability(value);
@@ -178,7 +178,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   /// Adopt the server's view of this driver once the profile loads. Without it
   /// the switch reads "Offline" after every app restart while the API still has
   /// the driver online — the driver believes they're working, but nothing is
-  /// pushing their position, so riders see no car and no requests arrive.
+  /// pushing their position, so customers see no car and no requests arrive.
   void _hydrateOnline(DriverApproval approval) {
     if (_hydrated) return;
     _hydrated = true;
@@ -403,6 +403,20 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                                         : 'Go online to start receiving trip requests'),
                                 style: tw(FontWeight.w600, 13, Brand.sub),
                               ),
+                              // Only on an EMPTY board, and only when actually
+                              // restricted. A permanent banner would nag; the
+                              // moment worth explaining is the one where a
+                              // driver is staring at nothing and wondering why.
+                              if (_online &&
+                                  approval.canWork &&
+                                  board.trips.isEmpty &&
+                                  approval.paymentRestrictionNote != null) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  approval.paymentRestrictionNote!,
+                                  style: tw(FontWeight.w600, 12, Brand.faint),
+                                ),
+                              ],
                             ],
                           ),
                         ),

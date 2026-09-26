@@ -243,7 +243,7 @@ class DispatchBoardController extends StateNotifier<DispatchBoardState> {
       final trip = Trip.fromJson(Map<String, dynamic>.from(raw));
       if (_ignored.contains(trip.id)) return;
 
-      // A rider who extends puts their request back on the board, and it may
+      // A customer who extends puts their request back on the board, and it may
       // still be sitting here greyed out from the window that just lapsed.
       // Revive that card with the new deadline instead of dropping the offer as
       // a duplicate, which would leave the driver looking at "Expired" for a job

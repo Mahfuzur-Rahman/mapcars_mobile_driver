@@ -11,7 +11,7 @@ import '../models/chat_message.dart';
 import '../services/trip_service.dart';
 import 'driver_location_reporting_controller.dart';
 
-/// Latest rider/system-cancelled trip pushed over realtime, if any — screens
+/// Latest customer/system-cancelled trip pushed over realtime, if any — screens
 /// watch this to notice a cancellation that happened out from under them.
 class TripRealtimeState {
   const TripRealtimeState({
@@ -43,7 +43,7 @@ class TripRealtimeState {
       );
 }
 
-/// Joins the active trip's SignalR group so a rider (or ops) cancellation
+/// Joins the active trip's SignalR group so a customer (or ops) cancellation
 /// reaches the driver immediately, instead of only surfacing once the
 /// driver's own next arrive/start/complete call happens to fail against an
 /// already-cancelled trip.
@@ -177,7 +177,7 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
     if (trip.id != _activeTripId) return;
     // Every other status is the driver's own action (accept/arrive/start/
     // complete) echoing back — only a cancellation is news to react to.
-    final cancelled = trip.status == TripStatus.cancelledByRider ||
+    final cancelled = trip.status == TripStatus.cancelledByCustomer ||
         trip.status == TripStatus.cancelledByDriver;
     if (trip.id == _selfCancelledTripId) return; // their own Cancel job, echoed
     if (cancelled && mounted) state = TripRealtimeState(cancelledTrip: trip);
@@ -197,7 +197,7 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
         final unread = unreadAfter(
           current: state.unreadMessages,
           message: msg,
-          otherParty: 'rider',
+          otherParty: 'customer',
           chatOpen: _chatOpen,
         );
         state = state.copyWith(
@@ -284,8 +284,8 @@ Future<void> showTripCancelledDialog(
     builder: (context) => AlertDialog(
       title: const Text('Trip cancelled'),
       content: Text(
-        trip.status == TripStatus.cancelledByRider
-            ? 'The rider cancelled this trip.'
+        trip.status == TripStatus.cancelledByCustomer
+            ? 'The customer cancelled this trip.'
             : 'This trip was cancelled.',
       ),
       actions: [

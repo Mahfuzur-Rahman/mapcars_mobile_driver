@@ -85,10 +85,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final realtimeState = ref.watch(tripRealtimeProvider);
     final messages = realtimeState.chatMessages;
 
-    // Rider name / subtitle from the trip. The API withholds rider details
+    // Customer name / subtitle from the trip. The API withholds customer details
     // until the trip is this driver's, so a name isn't guaranteed.
-    final riderName = trip.rider?.name ?? 'Your rider';
-    final riderSub = 'Passenger · ${trip.pickupAddress}';
+    final customerName = trip.customer?.name ?? 'Your customer';
+    final customerSub = 'Passenger · ${trip.pickupAddress}';
 
     // Auto-scroll when new messages arrive.
     ref.listen<List<ChatMessage>>(
@@ -101,8 +101,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: Column(
         children: [
           _Header(
-            name: riderName,
-            subtitle: riderSub,
+            name: customerName,
+            subtitle: customerSub,
             onBack: () => backOr(context, '/nav-pickup'),
           ),
           Expanded(

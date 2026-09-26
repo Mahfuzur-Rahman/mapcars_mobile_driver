@@ -18,7 +18,7 @@ const _liveStatuses = {
 /// Canary Wharf → Tower Bridge, £11.50) that was indistinguishable from a real
 /// job — now they either show the driver's actual trip or say there isn't one.
 ///
-/// `GET /trips/mine` is a list view: it omits the rider details and the meet-up
+/// `GET /trips/mine` is a list view: it omits the customer details and the meet-up
 /// PIN, so the winner is re-fetched in full through `GET /trips/{id}` — the same
 /// two-step the home screen's resume path does.
 final activeTripProvider = FutureProvider.autoDispose<Trip?>((ref) async {

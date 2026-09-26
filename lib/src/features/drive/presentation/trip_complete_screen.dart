@@ -181,7 +181,7 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Rate ${trip.rider?.name ?? 'your rider'}',
+                    Text('Rate ${trip.customer?.name ?? 'your customer'}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: tw(FontWeight.w900, 14, Brand.ink)),
@@ -225,7 +225,7 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
                         children: [
                           const Ico('check', size: 16, color: Brand.green),
                           const SizedBox(width: 6),
-                          Text('Thanks for rating your rider!',
+                          Text('Thanks for rating your customer!',
                               style: tw(FontWeight.w800, 13, Brand.green)),
                         ],
                       ),

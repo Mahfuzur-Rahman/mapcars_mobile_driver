@@ -12,18 +12,18 @@ import '../services/trip_service.dart';
 /// Drops a job the driver has already accepted, any time before they start the
 /// trip. `POST /trips/{id}/cancel` accepts either party right up to completion;
 /// the driver app deliberately only offers it on the two pre-start screens
-/// (`/nav-pickup` and `/arrived`) — once the rider is in the car, the way out
+/// (`/nav-pickup` and `/arrived`) — once the customer is in the car, the way out
 /// is to finish the trip.
 ///
-/// Tears down exactly what [showTripCancelledDialog] does when the *rider*
+/// Tears down exactly what [showTripCancelledDialog] does when the *customer*
 /// cancels — realtime group, the trip id on location pushes, the cached active
 /// trip — so the driver lands back on Home still online, with the board live.
 ///
 /// Shared by [NavPickupScreen] and [ArrivedScreen] so the two can't drift.
 /// From the arrived screen it also offers the **no-show** flag: the API only
 /// honours it once the driver has actually called `arrive`, and it's what
-/// separates "the rider never came out" from a driver-initiated drop in the
-/// rider's record.
+/// separates "the customer never came out" from a driver-initiated drop in the
+/// customer's record.
 Future<void> confirmCancelJob(
     BuildContext context, WidgetRef ref, Trip trip) async {
   final reasonController = TextEditingController();
@@ -41,7 +41,7 @@ Future<void> confirmCancelJob(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                "Your rider will be told the trip is off and will have to book "
+                "Your customer will be told the trip is off and will have to book "
                 "again. Cancelling counts towards your cancellation rate.",
               ),
               const SizedBox(height: 14),
@@ -61,9 +61,9 @@ Future<void> confirmCancelJob(
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                   activeColor: Brand.blue,
-                  title: Text("Rider didn't show up",
+                  title: Text("Customer didn't show up",
                       style: tw(FontWeight.w800, 14, Brand.ink)),
-                  subtitle: Text('Records this as a no-show against the rider.',
+                  subtitle: Text('Records this as a no-show against the customer.',
                       style: tw(FontWeight.w600, 12, Brand.sub)),
                 ),
               ],
@@ -102,7 +102,7 @@ Future<void> confirmCancelJob(
           isNoShow: canNoShow && noShow,
         );
   } catch (e) {
-    // The usual loser here is a race the driver can't see: the rider cancelled
+    // The usual loser here is a race the driver can't see: the customer cancelled
     // first, so the trip is already closed. Say what the API said and stay put
     // — the realtime cancellation push moves them on a moment later, which is
     // exactly why the guard has to come back off.

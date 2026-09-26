@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 
-/// Talks to `POST /api/v1/trips/{tripId}/ratings` — a driver rating the rider
+/// Talks to `POST /api/v1/trips/{tripId}/ratings` — a driver rating the customer
 /// once a trip is `Completed`. Mirrors `DriverAuthService`'s thin-service shape.
 class RatingService {
   RatingService(this._dio);

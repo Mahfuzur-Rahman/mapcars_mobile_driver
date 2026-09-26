@@ -15,7 +15,7 @@ export 'drawer_state.dart';
 /// [icon] does double duty: a non-null named icon (see `mc_icons.dart`) marks
 /// the entry as a real, user-facing menu destination. Entries without one are
 /// prototype-only steps in the walk-through and are hidden outside dev builds —
-/// a rider or driver must never be able to tap straight into `/searching` or
+/// a customer or driver must never be able to tap straight into `/searching` or
 /// `/trip-complete` from a menu.
 class StepRoute {
   const StepRoute(this.path, this.label, {this.category, this.icon});
@@ -285,7 +285,7 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
             // No `extra`: the trip screens resolve the driver's real trip
             // themselves (see `TripGate`). This used to hand them a demo trip,
             // which is why every step of the walk-through showed the same
-            // invented rider, route and fare.
+            // invented customer, route and fare.
             context.go(item.path);
           },
           child: Padding(

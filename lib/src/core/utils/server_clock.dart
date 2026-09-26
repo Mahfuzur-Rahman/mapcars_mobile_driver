@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 ///
 /// Deadlines like a trip's `expiresAtUtc` are written by the server, so a
 /// countdown to one has to be measured on the server's clock. Phone clocks are
-/// routinely tens of seconds out and occasionally minutes — a rider whose phone
+/// routinely tens of seconds out and occasionally minutes — a customer whose phone
 /// runs fast would watch their ride "expire" while it is still perfectly live,
 /// and a driver's card would read 0:12 on one handset and 0:31 on the next.
 ///

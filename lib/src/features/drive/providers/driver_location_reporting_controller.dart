@@ -49,7 +49,7 @@ class DriverLocationReportingController {
 
   /// The trip the driver is currently working (accepted → completed), if
   /// any — threaded onto every location push so the API can relay position to
-  /// the rider tracking that trip. Set on accept, cleared once the trip ends.
+  /// the customer tracking that trip. Set on accept, cleared once the trip ends.
   void setActiveTrip(String? tripId) => _activeTripId = tripId;
 
   /// Call when the driver goes offline.
@@ -79,7 +79,7 @@ class DriverLocationReportingController {
   /// in a cradle, or is in another app. Plain [LocationSettings] stops
   /// delivering within seconds of backgrounding on Android, so the driver's GEO
   /// entry goes stale after 60s and their car quietly vanishes from every
-  /// rider's map while they are sitting there available.
+  /// customer's map while they are sitting there available.
   ///
   /// Android: an ongoing-notification foreground service (the platform's only
   /// sanctioned way to keep location alive). iOS: background location updates
@@ -92,7 +92,7 @@ class DriverLocationReportingController {
         intervalDuration: const Duration(seconds: 5),
         foregroundNotificationConfig: const ForegroundNotificationConfig(
           notificationTitle: 'Mapcars — you’re online',
-          notificationText: 'Sharing your location so riders can find you.',
+          notificationText: 'Sharing your location so customers can find you.',
           notificationChannelName: 'Driver location',
           enableWakeLock: true,
           setOngoing: true,

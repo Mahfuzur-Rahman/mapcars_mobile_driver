@@ -34,6 +34,8 @@ class DriverProfile {
     this.ratingCount = 0,
     this.cancellationCount = 0,
     this.noShowCount = 0,
+    this.acceptsCash = true,
+    this.acceptsCard = false,
     this.createdAtUtc,
   });
 
@@ -63,6 +65,18 @@ class DriverProfile {
   final int ratingCount;
   final int cancellationCount;
   final int noShowCount;
+
+  /// Which fares this driver can be offered — the platform setting already
+  /// narrowed by any override an admin set on them. Sent pre-resolved by the
+  /// API: the raw override is a tri-state whose meaning depends on the global
+  /// setting, and reconstructing that rule client-side would be a second copy
+  /// of it waiting to drift.
+  final bool acceptsCash;
+  final bool acceptsCard;
+
+  /// True when an admin has restricted this driver to one kind of fare, which
+  /// is worth explaining — an unexplained thin board reads as a broken app.
+  bool get isPaymentRestricted => !(acceptsCash && acceptsCard);
   final DateTime? createdAtUtc;
 
   factory DriverProfile.fromJson(Map<String, dynamic> j) => DriverProfile(
@@ -93,6 +107,10 @@ class DriverProfile {
         ratingCount: j['ratingCount'] as int? ?? 0,
         cancellationCount: j['cancellationCount'] as int? ?? 0,
         noShowCount: j['noShowCount'] as int? ?? 0,
+        // Default to cash-on/card-off so a build talking to an API older than
+        // the payment settings behaves exactly as it did before.
+        acceptsCash: j['acceptsCash'] as bool? ?? true,
+        acceptsCard: j['acceptsCard'] as bool? ?? false,
         createdAtUtc: j['createdAtUtc'] == null
             ? null
             : DateTime.parse(j['createdAtUtc'] as String),
