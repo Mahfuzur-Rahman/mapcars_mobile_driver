@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
-import '../demo_credentials.dart';
 import '../services/driver_auth_service.dart';
 
 /// Whether this driver is cleared to work, straight from the API's driver
@@ -52,9 +51,17 @@ class DriverApproval {
 
   bool get canWork => status == 'Approved';
 
+  /// False only for [unknown] — the API hasn't answered yet (or couldn't be
+  /// reached), which is not the same as being told "not approved".
+  bool get isKnown => status != _unknownStatus;
+
   /// Headline + body for the "you can't work yet" sheet. Mirrors the API's
   /// `DriverApproval.BlockedMessage` so both sides say the same thing.
   (String title, String body) get blockedCopy => switch (status) {
+        _unknownStatus => (
+            'Checking your account',
+            'Confirming your approval with Mapcars. If this doesn’t clear, check your connection and tap Check status.',
+          ),
         'Suspended' => (
             'Account suspended',
             'Your account is suspended, so you can’t go online. Contact Mapcars support.',
@@ -69,17 +76,21 @@ class DriverApproval {
           ),
       };
 
-  /// Used for the offline demo session and whenever the status isn't known yet
-  /// — the app stays out of the way and lets the API have the final say.
-  static const unknown = DriverApproval(status: 'Approved', isOnline: false);
+  static const _unknownStatus = 'Unknown';
+
+  /// Whenever the API's answer isn't in hand — no session, still loading, or
+  /// the profile call failed. Fails **closed**: this used to be
+  /// `status: 'Approved'` (so the offline demo session could reach the board),
+  /// which meant every screen treated "don't know yet" as "cleared to work".
+  /// Approval is only ever what `GET /auth/drivers/me` says it is.
+  static const unknown = DriverApproval(status: _unknownStatus, isOnline: false);
 }
 
-/// Loads the driver's approval status. Null token (or the offline demo session,
-/// which has no real account behind it) → [DriverApproval.unknown], so the
-/// prototype path keeps working untouched.
+/// Loads the driver's approval status. No session → [DriverApproval.unknown];
+/// otherwise it is exactly what the API's driver profile reports.
 final driverApprovalProvider = FutureProvider<DriverApproval>((ref) async {
   final token = ref.watch(authTokenProvider);
-  if (token == null || token == DemoCredentials.token) return DriverApproval.unknown;
+  if (token == null) return DriverApproval.unknown;
 
   final profile = await ref.read(driverAuthServiceProvider).getProfile();
   return DriverApproval(

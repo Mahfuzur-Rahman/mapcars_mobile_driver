@@ -261,8 +261,11 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
+                        // Unknown fails closed like "not approved", but saying
+                        // so to an approved driver whose profile is still
+                        // loading would be alarming for no reason.
                         !approval.canWork
-                            ? 'Not approved'
+                            ? (approval.isKnown ? 'Not approved' : 'Checking…')
                             : (_online ? 'Online' : 'Offline'),
                         style: tw(FontWeight.w900, 14,
                             _online ? Brand.green : Brand.sub),

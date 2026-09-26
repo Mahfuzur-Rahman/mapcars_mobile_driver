@@ -4,7 +4,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
-import '../demo_credentials.dart';
 import '../models/auth_state.dart';
 
 /// Result from `GET/PATCH /me` — the driver's full profile, richer than
@@ -177,20 +176,6 @@ class AuthResult {
         isProfileComplete: isProfileComplete,
         isEmailVerified: isEmailVerified,
         isPhoneVerified: isPhoneVerified,
-      );
-
-  /// A synthetic result for the offline demo driver (no API call). See
-  /// [DemoCredentials] — used while the backend is not reachable.
-  factory AuthResult.demo() => const AuthResult(
-        token: DemoCredentials.token,
-        expiresInMinutes: DemoCredentials.sessionMinutes,
-        userId: DemoCredentials.userId,
-        fullName: DemoCredentials.fullName,
-        email: DemoCredentials.email,
-        phone: DemoCredentials.phone,
-        isProfileComplete: true,
-        isEmailVerified: true,
-        isPhoneVerified: true,
       );
 }
 
