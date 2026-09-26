@@ -369,6 +369,12 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        McGhostButton(
+          'Weekly statements',
+          icon: 'receipt',
+          onTap: () => context.push('/statements'),
+        ),
       ],
     );
   }

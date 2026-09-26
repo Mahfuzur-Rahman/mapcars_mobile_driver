@@ -13,6 +13,8 @@ import '../../features/account/presentation/history_screen.dart';
 import '../../features/account/presentation/payouts_screen.dart';
 import '../../features/account/presentation/profile_screen.dart';
 import '../../features/account/presentation/settings_screen.dart';
+import '../../features/account/presentation/statement_detail_screen.dart';
+import '../../features/account/presentation/statements_screen.dart';
 import '../../features/account/presentation/vehicle_form_screen.dart';
 import '../../features/account/presentation/vehicle_tier_screen.dart';
 import '../../features/account/services/vehicle_service.dart';
@@ -64,6 +66,7 @@ const List<StepRoute> kDriverFlow = [
   StepRoute('/trip-complete', 'Trip complete', category: 'Driving Flow'),
   StepRoute('/earnings', 'Earnings', category: 'Account', icon: 'chart'),
   StepRoute('/payouts', 'Payouts', category: 'Account', icon: 'bank'),
+  StepRoute('/statements', 'Statements', category: 'Account', icon: 'receipt'),
   StepRoute('/history', 'Trip history', category: 'Account', icon: 'clock'),
   StepRoute('/documents', 'Documents', category: 'Account', icon: 'doc'),
   StepRoute('/profile', 'Profile', category: 'Account', icon: 'user'),
@@ -198,6 +201,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           // Account
           _r('/earnings', () => const EarningsScreen()),
           _r('/payouts', () => const PayoutsScreen()),
+          _r('/statements', () => const StatementsScreen()),
+          GoRoute(
+            path: '/statements/:id',
+            builder: (c, s) =>
+                StatementDetailScreen(id: s.pathParameters['id']!),
+          ),
           _r('/history', () => const DriverHistoryScreen()),
           _r('/profile', () => const ProfileVehicleScreen()),
           _r('/profile/edit', () => const EditProfileScreen()),
