@@ -8,6 +8,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/widgets/mc.dart';
 import '../../drive/services/trip_service.dart';
+import '../models/week_earnings.dart';
 import '../providers/driver_trips_provider.dart';
 import '../services/payout_service.dart';
 
@@ -67,46 +68,6 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
     } catch (_) {
       if (mounted) setState(() => _loadingAccount = false);
     }
-  }
-
-  void _showCashOutModal(double amount) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: const BoxDecoration(
-                color: Color(0xFFDCFCE7),
-                shape: BoxShape.circle,
-              ),
-              child: const Center(
-                child: Ico('check', size: 28, color: Brand.green),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const McTitle('Instant Cash Out Sent', size: 22),
-            const SizedBox(height: 8),
-            Text(
-              'Transferred ${formatGbp((amount * 100).round())} to your linked bank account.',
-              textAlign: TextAlign.center,
-              style: tw(FontWeight.w600, 14, Brand.sub),
-            ),
-            const SizedBox(height: 24),
-            McButton('Done', kind: BtnKind.green, onTap: () => Navigator.pop(context)),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _setUpPayouts() async {
@@ -172,22 +133,8 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
   }
 
   Widget _buildBody(BuildContext context, List<Trip> trips) {
-    final completed = trips.where((t) => t.status == TripStatus.completed).toList();
-    final now = DateTime.now();
-    final weekAgo = now.subtract(const Duration(days: 7));
-    final thisWeek = completed
-        .where((t) => (t.completedAtUtc ?? t.createdAtUtc).isAfter(weekAgo))
-        .toList();
+    final week = WeekEarnings.from(trips, now: DateTime.now());
 
-    double sumEarnings(List<Trip> ts) =>
-        ts.fold(0.0, (sum, t) => sum + (t.driverEarnings ?? 0));
-    double sumTips(List<Trip> ts) => ts.fold(0.0, (sum, t) => sum + t.tipAmount);
-
-    final weekEarnings = sumEarnings(thisWeek);
-    final weekTips = sumTips(thisWeek);
-    final weekTripEarnings = weekEarnings - weekTips;
-
-    // Per-day totals for the last 7 days (Monday first).
     const dayFullNames = [
       'Monday',
       'Tuesday',
@@ -198,14 +145,9 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
       'Sunday'
     ];
     const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    final dayTotals = List<double>.filled(7, 0);
-    for (final t in thisWeek) {
-      final day = t.completedAtUtc ?? t.createdAtUtc;
-      final idx = day.weekday - 1; // Monday = 0
-      if (idx >= 0 && idx < 7) dayTotals[idx] += t.driverEarnings ?? 0;
-    }
-    final maxDay = dayTotals.fold(0.0, (m, v) => v > m ? v : m);
-    final selIdx = _selectedDayIndex ?? (now.weekday - 1);
+    final dayTotals = week.dayTotalsPence;
+    final maxDay = dayTotals.fold(0, (m, v) => v > m ? v : m);
+    final selIdx = _selectedDayIndex ?? week.todayIndex;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,14 +200,14 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
                       borderRadius: BorderRadius.circular(99),
                     ),
                     child: Text(
-                      '${dayFullNames[selIdx]}: ${formatGbp((dayTotals[selIdx] * 100).round())}',
+                      '${dayFullNames[selIdx]}: ${formatGbp(dayTotals[selIdx])}',
                       style: tw(FontWeight.w800, 11, Colors.white),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 2),
-              Text(formatGbp((weekEarnings * 100).round()),
+              Text(formatGbp(week.totalPence),
                   style: tw(FontWeight.w900, 38, Colors.white, -1)),
               const SizedBox(height: 14),
               SizedBox(
@@ -283,7 +225,9 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               Container(
-                                height: 8 + 48 * (maxDay == 0 ? 0 : dayTotals[i] / maxDay),
+                                // 8 + 40 + gap + label fits the 70px row; the
+                                // old 8 + 48 overflowed on the busiest day.
+                                height: 8 + 40 * (maxDay == 0 ? 0 : dayTotals[i] / maxDay),
                                 decoration: BoxDecoration(
                                   color: i == selIdx
                                       ? Colors.white
@@ -330,23 +274,15 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
             onTap: _startingOnboarding ? null : _setUpPayouts,
           )
         else
-          Row(
-            children: [
-              Expanded(
-                child: Text('Payouts sent automatically by Stripe.',
-                    style: tw(FontWeight.w700, 13, Brand.sub)),
-              ),
-              const SizedBox(width: 8),
-              McGhostButton(
-                'Cash out',
-                icon: 'bank',
-                // The driver's real balance — this used to fall back to £62.40
-                // and tell a driver who'd earned nothing that it had been sent.
-                onTap: weekEarnings > 0
-                    ? () => _showCashOutModal(weekEarnings)
-                    : null,
-              ),
-            ],
+          // There is no instant cash-out. This used to be a "Cash out" button
+          // whose sheet announced "Transferred £X to your linked bank account"
+          // without calling anything — a false financial confirmation. Money
+          // moves weekly, netted on the statement, and the copy says so.
+          Text(
+            'Paid weekly by Stripe. Each Monday’s statement shows what’s due '
+            'for the week before — card trips to you, commission on cash '
+            'trips to Mapcars.',
+            style: tw(FontWeight.w700, 13, Brand.sub),
           ),
         if (_error != null) ...[
           const SizedBox(height: 8),
@@ -354,14 +290,14 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
         ],
         const SizedBox(height: 16),
         // Breakdown rows
-        _breakdownRow('nav', 'Trip earnings', formatGbp((weekTripEarnings * 100).round()),
+        _breakdownRow('nav', 'Trip earnings', formatGbp(week.tripPence),
             divider: true),
-        _breakdownRow('gift', 'Tips', formatGbp((weekTips * 100).round()), divider: false),
+        _breakdownRow('gift', 'Tips', formatGbp(week.tipsPence), divider: false),
         const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('${thisWeek.length} trips this week',
+            Text('${week.tripCount} trips this week',
                 style: tw(FontWeight.w700, 13, Brand.sub)),
             GestureDetector(
               onTap: () => context.push('/payouts'),

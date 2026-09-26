@@ -12,6 +12,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/widgets/mc.dart';
 import '../../../core/widgets/current_location_map.dart';
+import '../../account/models/week_earnings.dart';
 import '../../account/providers/driver_trips_provider.dart';
 import '../../auth/providers/driver_approval_provider.dart';
 import '../../auth/services/driver_auth_service.dart';
@@ -554,18 +555,17 @@ class _EarningsStats extends ConsumerWidget {
     DateTime finishedAt(Trip t) => (t.completedAtUtc ?? t.createdAtUtc).toLocal();
 
     final now = DateTime.now();
-    final weekAgo = now.subtract(const Duration(days: 7));
     final completed = trips.where((t) => t.status == TripStatus.completed);
     final today = completed.where((t) {
       final at = finishedAt(t);
       return at.year == now.year && at.month == now.month && at.day == now.day;
     }).toList();
-    final week = completed.where((t) => finishedAt(t).isAfter(weekAgo));
 
     final todayPence =
         (today.fold(0.0, (sum, t) => sum + takeHome(t)) * 100).round();
-    final weekPence =
-        (week.fold(0.0, (sum, t) => sum + takeHome(t)) * 100).round();
+    // The same Monday-to-now UK week as the earnings screen and the statements,
+    // so "This week" is one number wherever the driver reads it.
+    final weekPence = WeekEarnings.from(trips, now: now).totalPence;
 
     return McCard(
       padding: 14,
