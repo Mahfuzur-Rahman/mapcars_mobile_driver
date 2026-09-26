@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
+import '../../auth/services/apple_sign_in_service.dart';
 
 enum AuthTab { phone, email }
 
@@ -62,6 +63,15 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
   Future<void> _continueWithGoogle() async {
     final ok =
         await ref.read(authNotifierProvider.notifier).continueWithGoogle(signUp: true);
+    if (!ok || !mounted) return;
+    final complete = ref.read(authNotifierProvider).isProfileComplete;
+    context.go(complete ? '/home' : '/registration');
+  }
+
+  /// A sign-in surface, so `signUp: false`: an Apple ID with no Mapcars
+  /// account gets the API's "please sign up first" rather than a new account.
+  Future<void> _continueWithApple() async {
+    final ok = await ref.read(authNotifierProvider.notifier).continueWithApple();
     if (!ok || !mounted) return;
     final complete = ref.read(authNotifierProvider).isProfileComplete;
     context.go(complete ? '/home' : '/registration');
@@ -266,6 +276,15 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                 loading: auth.isLoading,
                 onTap: auth.isLoading ? null : _continueWithGoogle,
               ),
+              // App Review 4.8: wherever Google sign-in is offered on iOS,
+              // Sign in with Apple must be too.
+              if (AppleSignInService.isAvailable) ...[
+                const SizedBox(height: 12),
+                McAppleButton(
+                  loading: auth.isLoading,
+                  onTap: auth.isLoading ? null : _continueWithApple,
+                ),
+              ],
 
               const SizedBox(height: 20),
               const McDividerLabel("Don't have an account?"),

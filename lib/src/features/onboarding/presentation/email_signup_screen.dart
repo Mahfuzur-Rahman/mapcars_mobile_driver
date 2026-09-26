@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
+import '../../auth/services/apple_sign_in_service.dart';
 
 enum SignupMethod { phone, email }
 
@@ -60,6 +61,16 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
     setState(() => _localError = null);
     final ok =
         await ref.read(authNotifierProvider.notifier).continueWithGoogle(signUp: true);
+    if (!ok || !mounted) return;
+    final complete = ref.read(authNotifierProvider).isProfileComplete;
+    context.go(complete ? '/home' : '/registration');
+  }
+
+  Future<void> _continueWithApple() async {
+    setState(() => _localError = null);
+    final ok = await ref
+        .read(authNotifierProvider.notifier)
+        .continueWithApple(signUp: true);
     if (!ok || !mounted) return;
     final complete = ref.read(authNotifierProvider).isProfileComplete;
     context.go(complete ? '/home' : '/registration');
@@ -220,6 +231,16 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
                 loading: auth.isLoading,
                 onTap: auth.isLoading ? null : _continueWithGoogle,
               ),
+              // App Review 4.8: wherever Google sign-in is offered on iOS,
+              // Sign in with Apple must be too.
+              if (AppleSignInService.isAvailable) ...[
+                const SizedBox(height: 12),
+                McAppleButton(
+                  signUp: true,
+                  loading: auth.isLoading,
+                  onTap: auth.isLoading ? null : _continueWithApple,
+                ),
+              ],
 
               const SizedBox(height: 20),
               const McDividerLabel('Already have an account?'),

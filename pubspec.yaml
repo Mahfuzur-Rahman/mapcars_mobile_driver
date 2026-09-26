@@ -47,6 +47,12 @@ dependencies:
   signalr_netcore: ^1.4.4
   url_launcher: ^6.3.1         # opens the Stripe Connect onboarding link in the browser
   intl: ^0.20.3
+  # "Sign in with Apple" (iOS only) — App Review 4.8 requires it wherever
+  # Google sign-in is offered. Yields the identity token we POST to
+  # /api/v1/auth/drivers/apple. Needs the Sign in with Apple capability on the
+  # App ID + the applesignin entitlement (ios/Runner/*.entitlements).
+  sign_in_with_apple: ^8.2.0
+  crypto: ^3.0.7                # SHA-256 of the Apple sign-in nonce
 
 dev_dependencies:
   flutter_test:

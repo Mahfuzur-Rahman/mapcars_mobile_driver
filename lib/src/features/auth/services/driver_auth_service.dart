@@ -276,6 +276,28 @@ class DriverAuthService {
         return AuthResult.fromJson(res.data!);
       });
 
+  /// `POST /auth/drivers/apple` — same response and the same `signUp` rule as
+  /// [signInWithGoogle]. [nonce] is the **raw** nonce whose SHA-256 went to
+  /// Apple; [fullName] is only ever non-null on the first Apple authorisation.
+  Future<AuthResult> signInWithApple({
+    required String idToken,
+    required String nonce,
+    String? fullName,
+    bool signUp = false,
+  }) =>
+      apiCall(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '$_base/apple',
+          data: {
+            'idToken': idToken,
+            'nonce': nonce,
+            'fullName': fullName,
+            'signUp': signUp,
+          },
+        );
+        return AuthResult.fromJson(res.data!);
+      });
+
   // ── Profile ───────────────────────────────────────────────────────────────
 
   Future<DriverProfile> getProfile() => apiCall(() async {

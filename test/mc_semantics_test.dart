@@ -121,4 +121,34 @@ void main() {
       handle.dispose();
     });
   });
+  group('McAppleButton', () {
+    testWidgets('uses an Apple-approved title for each surface',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(_host(McAppleButton(onTap: () {})));
+      expect(tester.getSemantics(find.byType(McAppleButton)).label,
+          'Sign in with Apple');
+
+      await tester.pumpWidget(_host(McAppleButton(signUp: true, onTap: () {})));
+      expect(tester.getSemantics(find.byType(McAppleButton)).label,
+          'Sign up with Apple');
+
+      handle.dispose();
+    });
+
+    testWidgets('busy: announced disabled and ignores taps', (tester) async {
+      final handle = tester.ensureSemantics();
+      var taps = 0;
+      await tester.pumpWidget(
+        _host(McAppleButton(loading: true, onTap: () => taps++)),
+      );
+
+      final node = tester.getSemantics(find.byType(McAppleButton));
+      expect(node.flagsCollection.isEnabled, Tristate.isFalse);
+      await tester.tap(find.byType(McAppleButton), warnIfMissed: false);
+      expect(taps, 0);
+
+      handle.dispose();
+    });
+  });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../router/nav.dart';
 import '../theme/brand.dart';
@@ -832,6 +833,51 @@ class McGoogleButton extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Sign in with Apple" — Apple's own button widget, so the logo, typeface and
+/// proportions stay within Apple's Human Interface Guidelines (App Review
+/// checks). Only the height and corner radius are ours, to sit level with
+/// [McGoogleButton]. Black on the light app background, as the HIG asks.
+///
+/// Callers show it on iOS only (`AppleSignInService.isAvailable`). While busy
+/// it dims and ignores taps rather than swapping its title: the HIG allows only
+/// Apple's three titles, so there is no "Signing in…" state to show.
+class McAppleButton extends StatelessWidget {
+  const McAppleButton({
+    super.key,
+    this.signUp = false,
+    this.onTap,
+    this.loading = false,
+    this.height = 54,
+  });
+
+  final bool signUp;
+  final VoidCallback? onTap;
+  final bool loading;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null && !loading;
+    final label = signUp ? 'Sign up with Apple' : 'Sign in with Apple';
+    return mcTapSemantics(
+      label: label,
+      enabled: enabled,
+      child: IgnorePointer(
+        ignoring: !enabled,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.6,
+          child: SignInWithAppleButton(
+            text: label,
+            height: height,
+            borderRadius: const BorderRadius.all(Radius.circular(16)),
+            onPressed: onTap ?? () {},
           ),
         ),
       ),

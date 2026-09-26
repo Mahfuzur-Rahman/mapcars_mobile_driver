@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/friendly_error.dart';
 import '../models/auth_state.dart';
+import '../services/apple_sign_in_service.dart';
 import '../services/driver_auth_service.dart';
 import '../services/google_sign_in_service.dart';
 import '../services/session_repository.dart';
@@ -129,6 +130,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _applyAuth(result);
       return true;
     } on GoogleSignInFailure catch (e) {
+      state = state.copyWith(isLoading: false, error: e.message);
+      return false;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: friendlyError(e));
+      return false;
+    }
+  }
+
+  // ── Apple ──────────────────────────────────────────────────────────────────
+
+  /// Full "Sign in with Apple" flow: Apple sheet → identity token + nonce →
+  /// API. Mirrors [continueWithGoogle]: a cancelled sheet returns false with
+  /// no error, and the API's own message (e.g. "sign up first") is surfaced.
+  Future<bool> continueWithApple({bool signUp = false}) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final credential =
+          await _ref.read(appleSignInServiceProvider).obtainCredential();
+      if (credential == null) {
+        state = state.copyWith(isLoading: false);
+        return false;
+      }
+      final result = await _service.signInWithApple(
+        idToken: credential.idToken,
+        nonce: credential.rawNonce,
+        fullName: credential.fullName,
+        signUp: signUp,
+      );
+      await _applyAuth(result);
+      return true;
+    } on AppleSignInFailure catch (e) {
       state = state.copyWith(isLoading: false, error: e.message);
       return false;
     } catch (e) {
