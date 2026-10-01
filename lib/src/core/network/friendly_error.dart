@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'api_exception.dart';
+import 'network_diagnosis.dart';
 
 /// Turns any thrown object into a sentence a driver can act on.
 ///
@@ -35,10 +36,11 @@ const _noConnection =
 
 String _dioMessage(DioException e) => switch (e.type) {
       DioExceptionType.connectionTimeout ||
+      DioExceptionType.connectionError =>
+        unreachableMessage(e) ?? _noConnection,
       DioExceptionType.sendTimeout ||
       DioExceptionType.receiveTimeout =>
         'The connection timed out. Please try again.',
-      DioExceptionType.connectionError => _noConnection,
       DioExceptionType.cancel => 'That request was cancelled.',
       // A response came back — reuse the API's own wording.
       _ => ApiException.fromDioError(e).message,

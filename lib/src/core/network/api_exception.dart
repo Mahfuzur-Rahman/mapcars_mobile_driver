@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import 'network_diagnosis.dart';
+
 class ApiException implements Exception {
   ApiException({required this.message, this.statusCode, this.errors});
 
@@ -9,7 +11,8 @@ class ApiException implements Exception {
 
   factory ApiException.fromDioError(DioException e) {
     final data = e.response?.data;
-    String msg = _httpMessage(e);
+    // Never Dio's own "took longer than 0:00:15.000000 … RequestOptions" text.
+    String msg = unreachableMessage(e) ?? _httpMessage(e);
 
     if (data is Map<String, dynamic>) {
       msg = (data['title'] as String?) ?? msg;

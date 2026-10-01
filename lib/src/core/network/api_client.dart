@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/env.dart';
 import '../utils/server_clock.dart';
 import 'api_exception.dart';
+import 'network_diagnosis.dart';
 
 /// Token provider — holds the current JWT.
 /// Auth screens write here after a successful login/OTP verification.
@@ -153,6 +154,16 @@ final dioProvider = Provider<Dio>((ref) {
             '[API] ${e.requestOptions.method} ${e.requestOptions.path} '
             '→ ${e.response?.statusCode} ${e.message}',
           );
+        }
+
+        // The API was never reached, so it logged nothing: find out why from
+        // the phone's side, and carry the answer to the error message.
+        if (isUnreachable(e)) {
+          e.requestOptions.extra = {
+            ...e.requestOptions.extra,
+            networkDiagnosisKey: await NetworkDiagnoser.shared.diagnose(),
+          };
+          return handler.next(e);
         }
 
         // Only react to 401s on authenticated calls — a 401 during login/OTP
