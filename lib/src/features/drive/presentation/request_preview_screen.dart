@@ -149,6 +149,18 @@ class _NoRequests extends StatelessWidget {
                 'new requests will appear the moment they come in.');
 
     return McSheet(
+      footer: Row(
+        children: [
+          Expanded(
+            child: McGhostButton('Refresh', onTap: loading ? null : onRefresh),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: McButton('Go to home',
+                icon: 'home', onTap: () => context.go('/home')),
+          ),
+        ],
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -183,20 +195,6 @@ class _NoRequests extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(body, style: tw(FontWeight.w600, 13, Brand.sub)),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: McGhostButton('Refresh',
-                    onTap: loading ? null : onRefresh),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: McButton('Go to home',
-                    icon: 'home', onTap: () => context.go('/home')),
-              ),
-            ],
-          ),
         ],
       ),
     );

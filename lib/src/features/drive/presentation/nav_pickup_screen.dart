@@ -107,105 +107,116 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
               onProgress: (p) {
                 if (mounted) setState(() => _progress = p);
               },
-            ),
-          ),
-          Positioned(
-            top: 50,
-            left: 14,
-            right: 14,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _EtaBanner(
-                  eta: progress?.etaLabel ?? '—',
-                  distance: progress?.distanceLabel ?? 'Finding route…',
-                  caption: 'to pickup',
-                  colour: Brand.green,
+              // The top controls and the sheet are handed to the map, which
+              // stacks them in one column with its Re-centre pill and route-error
+              // banner: the bottom block only gets the space under the controls.
+              top: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 50, 14, 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _EtaBanner(
+                      eta: progress?.etaLabel ?? '—',
+                      distance: progress?.distanceLabel ?? 'Finding route…',
+                      caption: 'to pickup',
+                      colour: Brand.green,
+                    ),
+                    const SizedBox(height: 10),
+                    const Align(
+                        alignment: Alignment.centerRight,
+                        child: McMenuButton()),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                const Align(alignment: Alignment.centerRight, child: McMenuButton()),
-              ],
+              ),
+              sheet: _sheet(trip, progress, unread),
             ),
           ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: McSheet(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          color: Brand.green,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Pickup · ${trip.customer?.name ?? 'your customer'}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: tw(FontWeight.w900, 15, Brand.ink),
-                        ),
-                      ),
-                      if (progress != null)
-                        Text(progress.etaLabel,
-                            style: tw(FontWeight.w800, 14, Brand.green)),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(trip.pickupAddress,
-                      style: tw(FontWeight.w700, 13.5, Brand.sub)),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      _SquareButton(
-                          icon: 'phone',
-                          semanticLabel: 'Call passenger',
-                          onTap: _callCustomer),
-                      const SizedBox(width: 10),
-                      McBadge(
-                        count: unread,
-                        child: _SquareButton(
-                            icon: 'msg',
-                            semanticLabel: unread == 0
-                                ? 'Message passenger'
-                                : 'Message passenger, $unread unread',
-                            onTap: () => context.push('/chat', extra: trip)),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: McGhostButton(
-                          'Navigate',
-                          icon: 'nav',
-                          height: 50,
-                          onTap: _navigate,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  McButton(
-                    _busy ? 'Confirming…' : "I've arrived",
-                    icon: 'check',
-                    kind: BtnKind.green,
-                    onTap: _busy ? null : _confirmArrival,
-                  ),
-                  const SizedBox(height: 10),
-                  McDangerButton(
-                    'Cancel job',
-                    icon: 'x',
-                    height: 48,
-                    onTap: _busy ? null : _cancelJob,
-                  ),
-                ],
+        ],
+      ),
+    );
+  }
+
+  Widget _sheet(Trip trip, RouteProgress? progress, int unread) {
+    return McSheet(
+      // Arrival and cancel are pinned; the address and the Navigate shortcut
+      // are what scrolls on a small phone or at larger text.
+      footer: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          McButton(
+            _busy ? 'Confirming…' : "I've arrived",
+            icon: 'check',
+            kind: BtnKind.green,
+            onTap: _busy ? null : _confirmArrival,
+          ),
+          const SizedBox(height: 10),
+          McDangerButton(
+            'Cancel job',
+            icon: 'x',
+            height: 48,
+            onTap: _busy ? null : _cancelJob,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  color: Brand.green,
+                  shape: BoxShape.circle,
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Pickup · ${trip.customer?.name ?? 'your customer'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tw(FontWeight.w900, 15, Brand.ink),
+                ),
+              ),
+              if (progress != null)
+                Text(progress.etaLabel,
+                    style: tw(FontWeight.w800, 14, Brand.green)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(trip.pickupAddress,
+              style: tw(FontWeight.w700, 13.5, Brand.sub)),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _SquareButton(
+                  icon: 'phone',
+                  semanticLabel: 'Call passenger',
+                  onTap: _callCustomer),
+              const SizedBox(width: 10),
+              McBadge(
+                count: unread,
+                child: _SquareButton(
+                    icon: 'msg',
+                    semanticLabel: unread == 0
+                        ? 'Message passenger'
+                        : 'Message passenger, $unread unread',
+                    onTap: () => context.push('/chat', extra: trip)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: McGhostButton(
+                  'Navigate',
+                  icon: 'nav',
+                  height: 50,
+                  onTap: _navigate,
+                ),
+              ),
+            ],
           ),
         ],
       ),

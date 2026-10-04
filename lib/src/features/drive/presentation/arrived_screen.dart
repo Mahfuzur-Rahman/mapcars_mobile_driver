@@ -120,107 +120,116 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
               destination: LatLng(trip.pickupLat, trip.pickupLng),
               destinationLabel: trip.pickupAddress,
               isPickup: true,
+              // The top controls and the sheet are handed to the map, which
+              // stacks them in one column with its Re-centre pill and route-error
+              // banner: the bottom block only gets the space under the controls.
+              top: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 56, 16, 10),
+                child: McFloatingNav(
+                  showHome: false,
+                  onBack: () => backOr(context, '/nav-pickup'),
+                ),
+              ),
+              sheet: _sheet(trip, customerName, rating, unread),
             ),
           ),
-          Positioned(
-            top: 56,
-            left: 16,
-            right: 16,
-            child: McFloatingNav(
-              showHome: false,
-              onBack: () => backOr(context, '/nav-pickup'),
-            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sheet(Trip trip, String customerName, double? rating, int unread) {
+    return McSheet(
+      // Start trip and Cancel job are pinned. The PIN pad stays in the body,
+      // which scrolls on a small phone or at larger text.
+      footer: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          McButton(
+            _busy ? 'Starting…' : 'Start trip',
+            icon: 'nav',
+            kind: BtnKind.green,
+            onTap: (_busy || !_pinSatisfied) ? null : _startTrip,
           ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: McSheet(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      const McAvatar(size: 52, color: Brand.blue),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(customerName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: tw(FontWeight.w900, 17, Brand.ink)),
-                            if (rating != null) ...[
-                              const SizedBox(height: 2),
-                              Row(
-                                children: [
-                                  const Ico('starF', size: 14, color: Brand.star),
-                                  const SizedBox(width: 4),
-                                  Text(rating.toStringAsFixed(1),
-                                      style: tw(FontWeight.w800, 13, Brand.sub)),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      // No phone button: the API deliberately never sends a
-                      // customer phone number (the driver's `Customer` model carries
-                      // name + rating only), so it could only ever have been
-                      // decorative. Chat is the channel that actually works.
-                      McBadge(
-                        count: unread,
-                        child: _SquareButton(
-                            icon: 'msg',
-                            semanticLabel: unread == 0
-                                ? 'Message passenger'
-                                : 'Message passenger, $unread unread',
-                            onTap: () => context.push('/chat', extra: trip)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  if (_pinRequired)
-                    _PinPad(
-                      entered: _entered,
-                      error: _pinError,
-                      onDigit: _tapDigit,
-                      onBackspace: _backspace,
-                    )
-                  else
-                    McCard(
-                      padding: 14,
-                      child: Row(
+          const SizedBox(height: 10),
+          McDangerButton(
+            'Cancel job',
+            icon: 'x',
+            height: 48,
+            onTap: _busy ? null : _cancelJob,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const McAvatar(size: 52, color: Brand.blue),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(customerName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tw(FontWeight.w900, 17, Brand.ink)),
+                    if (rating != null) ...[
+                      const SizedBox(height: 2),
+                      Row(
                         children: [
-                          const Ico('shield', size: 18, color: Brand.sub),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text('No PIN on this trip — confirm the '
-                                'customer by name before setting off.',
-                                style: tw(FontWeight.w700, 12.5, Brand.sub)),
-                          ),
+                          const Ico('starF', size: 14, color: Brand.star),
+                          const SizedBox(width: 4),
+                          Text(rating.toStringAsFixed(1),
+                              style: tw(FontWeight.w800, 13, Brand.sub)),
                         ],
                       ),
-                    ),
-                  const SizedBox(height: 14),
-                  McButton(
-                    _busy ? 'Starting…' : 'Start trip',
-                    icon: 'nav',
-                    kind: BtnKind.green,
-                    onTap: (_busy || !_pinSatisfied) ? null : _startTrip,
-                  ),
-                  const SizedBox(height: 10),
-                  McDangerButton(
-                    'Cancel job',
-                    icon: 'x',
-                    height: 48,
-                    onTap: _busy ? null : _cancelJob,
+                    ],
+                  ],
+                ),
+              ),
+              // No phone button: the API deliberately never sends a
+              // customer phone number (the driver's `Customer` model carries
+              // name + rating only), so it could only ever have been
+              // decorative. Chat is the channel that actually works.
+              McBadge(
+                count: unread,
+                child: _SquareButton(
+                    icon: 'msg',
+                    semanticLabel: unread == 0
+                        ? 'Message passenger'
+                        : 'Message passenger, $unread unread',
+                    onTap: () => context.push('/chat', extra: trip)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (_pinRequired)
+            _PinPad(
+              entered: _entered,
+              error: _pinError,
+              onDigit: _tapDigit,
+              onBackspace: _backspace,
+            )
+          else
+            McCard(
+              padding: 14,
+              child: Row(
+                children: [
+                  const Ico('shield', size: 18, color: Brand.sub),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text('No PIN on this trip — confirm the '
+                        'customer by name before setting off.',
+                        style: tw(FontWeight.w700, 12.5, Brand.sub)),
                   ),
                 ],
               ),
             ),
-          ),
         ],
       ),
     );

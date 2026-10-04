@@ -74,18 +74,47 @@ class RequestCard extends StatelessWidget {
     final miles = trip.distanceMiles ?? 0;
 
     return McSheet(
+      // Accept / Ignore are pinned: the card's details scroll if they must, but
+      // the decision never does.
+      footer: Row(
+        children: [
+          Expanded(
+            child: McGhostButton(
+              lapsed ? 'Dismiss' : 'Ignore',
+              onTap: busy ? null : onIgnore,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            // Disabling Accept here is a courtesy, not the guard: the API
+            // refuses a lapsed request on its own clock, so a stale card or
+            // a skewed phone can't take a job that has gone.
+            child: lapsed
+                ? const McButton('Expired', kind: BtnKind.green, onTap: null)
+                : McButton(
+                    busy ? 'Accepting…' : 'Accept',
+                    kind: BtnKind.green,
+                    onTap: busy ? null : onAccept,
+                  ),
+          ),
+        ],
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              McTitle(
-                lapsed ? 'Request expired' : 'New trip request',
-                size: 19,
-                color: lapsed ? Brand.sub : Brand.ink,
+              // Expanded, not a Spacer: with the countdown and a "+N more" pill
+              // beside it the title overflowed at larger text; this lets it wrap.
+              Expanded(
+                child: McTitle(
+                  lapsed ? 'Request expired' : 'New trip request',
+                  size: 19,
+                  color: lapsed ? Brand.sub : Brand.ink,
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               _CountdownChip(
                 left: left,
                 lapsed: lapsed,
@@ -128,30 +157,6 @@ class RequestCard extends StatelessWidget {
                   _Stat(_titleCase(trip.tier!), 'Tier'),
               ],
             ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: McGhostButton(
-                  lapsed ? 'Dismiss' : 'Ignore',
-                  onTap: busy ? null : onIgnore,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                // Disabling Accept here is a courtesy, not the guard: the API
-                // refuses a lapsed request on its own clock, so a stale card or
-                // a skewed phone can't take a job that has gone.
-                child: lapsed
-                    ? const McButton('Expired', kind: BtnKind.green, onTap: null)
-                    : McButton(
-                        busy ? 'Accepting…' : 'Accept',
-                        kind: BtnKind.green,
-                        onTap: busy ? null : onAccept,
-                      ),
-              ),
-            ],
           ),
         ],
       ),

@@ -91,126 +91,137 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
               onProgress: (p) {
                 if (mounted) setState(() => _progress = p);
               },
-            ),
-          ),
-          Positioned(
-            top: 50,
-            left: 14,
-            right: 14,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _EtaBanner(
-                  eta: progress?.etaLabel ?? '—',
-                  distance: progress?.distanceLabel ?? 'Finding route…',
-                  onNavigate: _navigate,
-                ),
-                const SizedBox(height: 10),
-                const Align(
-                  alignment: Alignment.centerRight,
-                  child: McMenuButton(),
-                ),
-              ],
-            ),
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: McSheet(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: Brand.blue,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                            trip.dropoffAddress,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: tw(FontWeight.w900, 15, Brand.ink)),
-                      ),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(99),
-                        child: Container(
-                          width: 80,
-                          height: 6,
-                          color: Brand.fill,
-                          child: FractionallySizedBox(
-                            alignment: Alignment.centerLeft,
-                            // Real progress along the route, not a fixed 58%.
-                            widthFactor: progress?.fraction ?? 0.0,
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [Brand.blue, Brand.green],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (showPayment) ...[
-                    DropOffPaymentBanner(trip: trip),
-                    const SizedBox(height: 12),
+              // The top controls and the sheet are handed to the map, which
+              // stacks them in one column with its Re-centre pill and route-error
+              // banner: the bottom block only gets the space under the controls.
+              top: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 50, 14, 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _EtaBanner(
+                      eta: progress?.etaLabel ?? '—',
+                      distance: progress?.distanceLabel ?? 'Finding route…',
+                      onNavigate: _navigate,
+                    ),
+                    const SizedBox(height: 10),
+                    const Align(
+                      alignment: Alignment.centerRight,
+                      child: McMenuButton(),
+                    ),
                   ],
-                  Row(
-                    children: [
-                      _StatCard(
-                        value: progress?.etaLabel ?? '—',
-                        sub: progress == null
-                            ? 'arrival'
-                            : 'arrival ${progress.arrivalLabel}',
+                ),
+              ),
+              sheet: _sheet(trip, progress, fare, unread, showPayment),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sheet(Trip trip, RouteProgress? progress, double? fare, int unread,
+      bool showPayment) {
+    return McSheet(
+      // Complete trip — and Message passenger, the button that sits directly
+      // above it — are pinned. The payment banner and the stats are what scroll,
+      // so a long cash-collection line can never push Complete off screen.
+      footer: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Chat was reachable on nav_pickup and arrived but not here,
+          // so it disappeared for both parties the moment the customer got
+          // in — exactly when a drop-off change gets asked for.
+          McBadge(
+            count: unread,
+            child: McGhostButton(
+              'Message passenger',
+              icon: 'msg',
+              height: 48,
+              semanticLabel: unread == 0
+                  ? 'Message passenger'
+                  : 'Message passenger, $unread unread',
+              onTap: () => context.push('/chat', extra: trip),
+            ),
+          ),
+          const SizedBox(height: 10),
+          McButton(
+            _busy ? 'Completing…' : 'Complete trip',
+            icon: 'check',
+            kind: BtnKind.green,
+            onTap: _busy ? null : _complete,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: Brand.blue,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                    trip.dropoffAddress,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: tw(FontWeight.w900, 15, Brand.ink)),
+              ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: Container(
+                  width: 80,
+                  height: 6,
+                  color: Brand.fill,
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    // Real progress along the route, not a fixed 58%.
+                    widthFactor: progress?.fraction ?? 0.0,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Brand.blue, Brand.green],
+                        ),
                       ),
-                      const SizedBox(width: 10),
-                      _StatCard(
-                          value: progress?.distanceLabel ?? '—',
-                          sub: 'remaining'),
-                      const SizedBox(width: 10),
-                      _StatCard(
-                          value:
-                              fare != null ? '£${fare.toStringAsFixed(2)}' : '—',
-                          sub: 'fare',
-                          valueColor: Brand.green),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  // Chat was reachable on nav_pickup and arrived but not here,
-                  // so it disappeared for both parties the moment the customer got
-                  // in — exactly when a drop-off change gets asked for.
-                  McBadge(
-                    count: unread,
-                    child: McGhostButton(
-                      'Message passenger',
-                      icon: 'msg',
-                      height: 48,
-                      semanticLabel: unread == 0
-                          ? 'Message passenger'
-                          : 'Message passenger, $unread unread',
-                      onTap: () => context.push('/chat', extra: trip),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  McButton(
-                    _busy ? 'Completing…' : 'Complete trip',
-                    icon: 'check',
-                    kind: BtnKind.green,
-                    onTap: _busy ? null : _complete,
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (showPayment) ...[
+            DropOffPaymentBanner(trip: trip),
+            const SizedBox(height: 12),
+          ],
+          Row(
+            children: [
+              _StatCard(
+                value: progress?.etaLabel ?? '—',
+                sub: progress == null
+                    ? 'arrival'
+                    : 'arrival ${progress.arrivalLabel}',
+              ),
+              const SizedBox(width: 10),
+              _StatCard(
+                  value: progress?.distanceLabel ?? '—',
+                  sub: 'remaining'),
+              const SizedBox(width: 10),
+              _StatCard(
+                  value:
+                      fare != null ? '£${fare.toStringAsFixed(2)}' : '—',
+                  sub: 'fare',
+                  valueColor: Brand.green),
+            ],
           ),
         ],
       ),

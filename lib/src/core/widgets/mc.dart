@@ -450,6 +450,10 @@ double _bottomPadding(BuildContext context) =>
 /// )
 /// ```
 ///
+/// The body is always inside a `SingleChildScrollView`, so it must not contain
+/// a vertical `Expanded`/`Spacer` or an unbounded `ListView` (they would have
+/// unbounded height to fill).
+///
 /// The sheet sizes to its content up to [maxHeight] — or, when that is null,
 /// ~85% of the space it is given, so the top of the map and its floating
 /// controls stay uncovered. Its paper runs under the system nav bar while its

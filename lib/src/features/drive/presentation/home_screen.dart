@@ -249,110 +249,125 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
               onLocated: _onLocated,
             ),
           ),
-          // Top: online status pill + avatar
+          // Top: menu, online status pill, search + profile. The API-connection
+          // pill is its own line underneath: all of them used to share one row,
+          // and at 360dp the pill was squeezed to ~27dp — too narrow for its own
+          // padding (an 11px overflow). Wrapping it keeps everything readable.
           Positioned(
             top: 56,
             left: 16,
             right: 16,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const McMenuButton(),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 7, 8, 7),
-                  decoration: const BoxDecoration(
-                    color: Brand.paper,
-                    borderRadius: BorderRadius.all(Radius.circular(99)),
-                    boxShadow: Brand.floatShadow,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        // Unknown fails closed like "not approved", but saying
-                        // so to an approved driver whose profile is still
-                        // loading would be alarming for no reason.
-                        !approval.canWork
-                            ? (approval.isKnown ? 'Not approved' : 'Checking…')
-                            : (_online ? 'Online' : 'Offline'),
-                        style: tw(FontWeight.w900, 14,
-                            _online ? Brand.green : Brand.sub),
-                      ),
-                      const SizedBox(width: 10),
-                      SizedBox(
-                        width: 54,
-                        height: 32,
-                        child: FittedBox(
-                          fit: BoxFit.contain,
-                          child: Switch(
-                            value: _online,
-                            activeThumbColor: Colors.white,
-                            activeTrackColor: Brand.green,
-                            inactiveThumbColor: Colors.white,
-                            inactiveTrackColor: Brand.line,
-                            // Null disables the switch outright — an unapproved
-                            // driver has nothing to toggle.
-                            onChanged: approval.canWork ? _setOnline : null,
+                Row(
+                  children: [
+                    const McMenuButton(),
+                    const SizedBox(width: 6),
+                    // Expanded + Align: the pill takes the free space (a loose
+                    // Flexible next to a Spacer split it in half and left the
+                    // label ~3dp wide) and still hugs its content. The label may
+                    // wrap at large text but is never cut to an ellipsis.
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(14, 7, 8, 7),
+                          decoration: const BoxDecoration(
+                            color: Brand.paper,
+                            borderRadius: BorderRadius.all(Radius.circular(99)),
+                            boxShadow: Brand.floatShadow,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  // Unknown fails closed like "not approved", but saying
+                                  // so to an approved driver whose profile is still
+                                  // loading would be alarming for no reason.
+                                  !approval.canWork
+                                      ? (approval.isKnown
+                                          ? 'Not approved'
+                                          : 'Checking…')
+                                      : (_online ? 'Online' : 'Offline'),
+                                  style: tw(FontWeight.w900, 14,
+                                      _online ? Brand.green : Brand.sub),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              SizedBox(
+                                width: 54,
+                                height: 32,
+                                child: FittedBox(
+                                  fit: BoxFit.contain,
+                                  child: Switch(
+                                    value: _online,
+                                    activeThumbColor: Colors.white,
+                                    activeTrackColor: Brand.green,
+                                    inactiveThumbColor: Colors.white,
+                                    inactiveTrackColor: Brand.line,
+                                    // Null disables the switch outright — an unapproved
+                                    // driver has nothing to toggle.
+                                    onChanged: approval.canWork ? _setOnline : null,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 4),
+                    McCircleButton('search',
+                        onTap: () => context.push('/set-route')),
+                    const SizedBox(width: 6),
+                    // The shared icon-label map says "Account"; this one goes
+                    // to the driver profile, so name it for what it opens.
+                    McCircleButton('user',
+                        semanticLabel: 'Profile',
+                        onTap: () => context.go('/profile')),
+                  ],
                 ),
-                Flexible(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Flexible(
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final isOnline = ref.watch(apiHealthProvider).value ?? false;
-                            final hasToken = ref.watch(authTokenProvider) != null;
-                            final isConnected = isOnline && hasToken;
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                              decoration: const BoxDecoration(
-                                color: Brand.paper,
-                                borderRadius: BorderRadius.all(Radius.circular(99)),
-                                boxShadow: Brand.floatShadow,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: isConnected ? Brand.green : Colors.amber,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      isConnected ? 'Connected' : 'Offline',
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                      style: tw(FontWeight.w800, 11.5, Brand.sub),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final isOnline =
+                          ref.watch(apiHealthProvider).value ?? false;
+                      final hasToken = ref.watch(authTokenProvider) != null;
+                      final isConnected = isOnline && hasToken;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: const BoxDecoration(
+                          color: Brand.paper,
+                          borderRadius: BorderRadius.all(Radius.circular(99)),
+                          boxShadow: Brand.floatShadow,
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      McCircleButton('search',
-                          onTap: () => context.push('/set-route')),
-                      const SizedBox(width: 6),
-                      // The shared icon-label map says "Account"; this one goes
-                      // to the driver profile, so name it for what it opens.
-                      McCircleButton('user',
-                          semanticLabel: 'Profile',
-                          onTap: () => context.go('/profile')),
-                    ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color:
+                                    isConnected ? Brand.green : Colors.amber,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isConnected ? 'Connected' : 'Offline',
+                              style: tw(FontWeight.w800, 11.5, Brand.sub),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -362,8 +377,22 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
             Align(
               alignment: Alignment.bottomCenter,
               // Sized to its content: a fixed 300 had no room for the nav-bar
-              // inset the sheet now pads, or for larger text.
+              // inset the sheet now pads, or for larger text. The one button
+              // that does the sheet's job is pinned below the body, so a long
+              // status line or a restriction note can't push it away.
               child: McSheet(
+                footer: approval.canWork
+                    ? McButton(
+                        _online ? 'Go offline' : 'Go online',
+                        kind: _online ? BtnKind.blue : BtnKind.green,
+                        onTap: () => _setOnline(!_online),
+                      )
+                    // Approval lands server-side while the app sits
+                    // here — let the driver re-check without a restart.
+                    : McButton(
+                        'Check status',
+                        onTap: () => ref.invalidate(driverApprovalProvider),
+                      ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -437,37 +466,16 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                     const SizedBox(height: 14),
                     const _EarningsStats(),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: approval.canWork
-                              ? McGhostButton(
-                                  'Earnings',
-                                  icon: 'chart',
-                                  onTap: () => context.go('/earnings'),
-                                )
-                              : McGhostButton(
-                                  'My documents',
-                                  onTap: () => context.go('/documents'),
-                                ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: approval.canWork
-                              ? McGhostButton(
-                                  _online ? 'Go offline' : 'Go online',
-                                  onTap: () => _setOnline(!_online),
-                                )
-                              // Approval lands server-side while the app sits
-                              // here — let the driver re-check without a restart.
-                              : McGhostButton(
-                                  'Check status',
-                                  onTap: () =>
-                                      ref.invalidate(driverApprovalProvider),
-                                ),
-                        ),
-                      ],
-                    ),
+                    approval.canWork
+                        ? McGhostButton(
+                            'Earnings',
+                            icon: 'chart',
+                            onTap: () => context.go('/earnings'),
+                          )
+                        : McGhostButton(
+                            'My documents',
+                            onTap: () => context.go('/documents'),
+                          ),
                   ],
                 ),
               ),

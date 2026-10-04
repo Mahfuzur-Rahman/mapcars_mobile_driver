@@ -137,6 +137,14 @@ double visibleBottom(WidgetTester tester) {
 void expectReachableWithoutScrolling(WidgetTester tester, Finder finder) {
   expect(finder, findsOneWidget);
 
+  // Guard: a test that forgot `theme: AppTheme.light` measures the test font
+  // (1em square glyphs), which makes every verdict below meaningless.
+  final family = DefaultTextStyle.of(finder.evaluate().single).style.fontFamily;
+  expect(family, 'Nunito',
+      reason: 'text under $finder is not using the real app font ($family) — '
+          'give the MaterialApp `theme: AppTheme.light`, or the measurements '
+          'here are for the wrong glyph sizes');
+
   final rect = tester.getRect(finder);
   final width = tester.view.physicalSize.width / tester.view.devicePixelRatio;
   final bottom = visibleBottom(tester);

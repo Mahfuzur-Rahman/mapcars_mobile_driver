@@ -76,6 +76,8 @@ class LiveRouteMap extends ConsumerStatefulWidget {
     this.destinationLabel = 'Destination',
     this.isPickup = false,
     this.onProgress,
+    this.top,
+    this.sheet,
   });
 
   final LatLng destination;
@@ -86,6 +88,21 @@ class LiveRouteMap extends ConsumerStatefulWidget {
 
   /// Called on every GPS fix with fresh route metrics.
   final ValueChanged<RouteProgress>? onProgress;
+
+  /// The screen's floating controls along the top of the map (ETA banner, menu,
+  /// back). Laid out here, above the overlays and the sheet, in the same column:
+  /// the bottom block can only ever use the space *below* it, so nothing at the
+  /// bottom — the sheet, the Re-centre pill, the route-error banner — can slide
+  /// up under these controls, whatever the text size. It gets the full width, so
+  /// include your own side and top padding.
+  final Widget? top;
+
+  /// The screen's bottom sheet (an `McSheet`), if it has one. It is laid out
+  /// here, at the bottom of the map, so the Re-centre pill and the route-error
+  /// banner stack directly *above* it. Those two used to be pinned 14dp from
+  /// the bottom of the map — which is behind the sheet, where they could be
+  /// neither seen nor tapped.
+  final Widget? sheet;
 
   @override
   ConsumerState<LiveRouteMap> createState() => _LiveRouteMapState();
@@ -407,23 +424,52 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
             },
           ),
         ),
-        if (!_following)
-          Positioned(
-            right: 14,
-            bottom: 14,
-            child: _RecentrePill(onTap: () {
-              setState(() => _following = true);
-              final here = _motion.position;
-              if (here != null) _followCamera(here);
-            }),
+        // One column for everything over the map: the top controls take their
+        // natural height and the bottom block gets the rest, so the two can
+        // never overlap. Empty parts of it don't swallow touches meant for the map.
+        Positioned.fill(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.top != null) widget.top!,
+              Expanded(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!_following)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 14, bottom: 10),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: _RecentrePill(onTap: () {
+                              setState(() => _following = true);
+                              final here = _motion.position;
+                              if (here != null) _followCamera(here);
+                            }),
+                          ),
+                        ),
+                      if (_routeError != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                          child: _RouteErrorBanner(message: _routeError!),
+                        ),
+                      // The sheet takes what is left, and its body scrolls if
+                      // that is not enough — its footer stays on screen.
+                      if (widget.sheet != null)
+                        Flexible(child: widget.sheet!)
+                      // No sheet: keep the overlays clear of the screen edge.
+                      else
+                        const SizedBox(height: 4),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        if (_routeError != null)
-          Positioned(
-            left: 14,
-            right: 14,
-            bottom: 14,
-            child: _RouteErrorBanner(message: _routeError!),
-          ),
+        ),
       ],
     );
   }
