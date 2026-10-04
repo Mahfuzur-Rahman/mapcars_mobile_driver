@@ -4,9 +4,10 @@
 // phone it overflowed and the Cancel / Submit Request buttons were squeezed
 // out of reach.
 //
-// The dialog is pumped on its own: the Documents screen around it has an
-// unrelated horizontal overflow at 360dp (see the D1 report) that would fail
-// this test for the wrong reason.
+// The dialog is pumped on its own, so this test covers just its layout. (The
+// Documents screen around it used to overflow at 360dp, which would have failed
+// this test for the wrong reason; D3 fixed that, and the screen's own
+// reachability is covered in full_page_bottom_actions_test.dart.)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

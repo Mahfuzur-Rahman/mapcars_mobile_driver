@@ -13,7 +13,8 @@
 //   await pumpOnSmallPhone(
 //       tester, MaterialApp(theme: AppTheme.light, home: MyScreen()),
 //       textScale: 1.3);
-//   expectReachableWithoutScrolling(tester, find.text('Start trip'));
+//   expectReachableWithoutScrolling(
+//       tester, find.widgetWithText(McButton, 'Start trip'));
 //
 //   // A screen with a text field: open the keyboard and check again.
 //   await showKeyboard(tester);

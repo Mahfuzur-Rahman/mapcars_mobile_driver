@@ -10,7 +10,8 @@ import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
 
 /// Code-entry screen for driver email sign-up. The code expires after 3 minutes
-/// (matches the API); a live countdown gates the "Resend code" action.
+/// (matches the API); a live countdown shows how long is left, and once it has
+/// run out the pinned action becomes "Resend code".
 class EmailVerifyScreen extends ConsumerStatefulWidget {
   const EmailVerifyScreen({super.key});
 
@@ -87,107 +88,117 @@ class _EmailVerifyScreenState extends ConsumerState<EmailVerifyScreen> {
       fallback: '/email-signup',
       child: Scaffold(
         backgroundColor: Brand.bg,
+        // The one live action is pinned in an McActionBar, which handles the
+        // bottom inset itself (so no SafeArea there) and rides above the
+        // keyboard: "Verify" while the code is live, "Resend code" once it has
+        // expired (when "Verify" could only do nothing).
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                McCircleButton('back',
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
+                child: McCircleButton('back',
                     onTap: () => backOr(context, '/email-signup')),
-                const SizedBox(height: 22),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const McTitle('Verify your email', size: 25),
-                        const SizedBox(height: 10),
-                        Text.rich(
-                          TextSpan(
-                            text: 'We sent a 6-digit code to $email. ',
-                            style: tw(FontWeight.w600, 15, Brand.sub),
-                            children: [
-                              WidgetSpan(
-                                child: GestureDetector(
-                                  onTap: () => backOr(context, '/email-signup'),
-                                  child: Text('Edit',
-                                      style: tw(FontWeight.w800, 15, Brand.green)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        OtpInput(
-                          length: 6,
-                          boxHeight: 60,
-                          onCompleted: (code) {
-                            setState(() => _code = code);
-                            _verify();
-                          },
-                        ),
-                        if (AppConfig.showDevOtp && auth.devOtpCode != null) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFCF3D5),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFFEECB5F)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Ico('mail', size: 16, color: Color(0xFFB07310)),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Dev code: ${auth.devOtpCode}',
-                                  style: tw(FontWeight.w700, 14, const Color(0xFFB07310)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        if (auth.error != null) ...[
-                          const SizedBox(height: 12),
-                          Text(auth.error!, style: tw(FontWeight.w600, 13, Colors.red)),
-                        ],
-                        const SizedBox(height: 22),
-                        Row(
+              ),
+              const SizedBox(height: 22),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const McTitle('Verify your email', size: 25),
+                      const SizedBox(height: 10),
+                      Text.rich(
+                        TextSpan(
+                          text: 'We sent a 6-digit code to $email. ',
+                          style: tw(FontWeight.w600, 15, Brand.sub),
                           children: [
-                            Ico('clock',
-                                size: 16, color: expired ? Colors.red : Brand.faint),
-                            const SizedBox(width: 6),
-                            Text(
-                              expired ? 'Code expired' : 'Code expires in $_mmss',
-                              style: tw(FontWeight.w700, 14,
-                                  expired ? Colors.red : Brand.sub),
-                            ),
-                            const Spacer(),
-                            GestureDetector(
-                              onTap: (expired && !auth.isLoading) ? _resend : null,
-                              child: Text(
-                                'Resend code',
-                                style: tw(FontWeight.w800, 14,
-                                    expired ? Brand.green : Brand.faint),
+                            WidgetSpan(
+                              child: GestureDetector(
+                                onTap: () => backOr(context, '/email-signup'),
+                                child: Text('Edit',
+                                    style: tw(FontWeight.w800, 15, Brand.green)),
                               ),
                             ),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: 28),
+                      OtpInput(
+                        length: 6,
+                        boxHeight: 60,
+                        onCompleted: (code) {
+                          setState(() => _code = code);
+                          _verify();
+                        },
+                      ),
+                      if (AppConfig.showDevOtp && auth.devOtpCode != null) ...[
                         const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFCF3D5),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFEECB5F)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Ico('mail',
+                                  size: 16, color: Color(0xFFB07310)),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Dev code: ${auth.devOtpCode}',
+                                style: tw(FontWeight.w700, 14,
+                                    const Color(0xFFB07310)),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
-                    ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          Ico('clock',
+                              size: 16,
+                              color: expired ? Colors.red : Brand.faint),
+                          const SizedBox(width: 6),
+                          Text(
+                            expired ? 'Code expired' : 'Code expires in $_mmss',
+                            style: tw(FontWeight.w700, 14,
+                                expired ? Colors.red : Brand.sub),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                McButton(
-                  auth.isLoading ? 'Verifying…' : 'Verify',
-                  icon: auth.isLoading ? null : 'check',
-                  kind: BtnKind.green,
-                  onTap: (auth.isLoading || expired) ? null : _verify,
-                ),
-              ],
-            ),
+              ),
+              McActionBar(
+                // A wrong code / failed resend sits with the button, so it is
+                // on screen after tapping it, keyboard up or not.
+                notice: auth.error == null ? null : McErrorBanner(auth.error!),
+                children: [
+                  if (expired)
+                    McButton(
+                      auth.isLoading ? 'Sending code…' : 'Resend code',
+                      icon: auth.isLoading ? null : 'mail',
+                      kind: BtnKind.green,
+                      onTap: auth.isLoading ? null : _resend,
+                    )
+                  else
+                    McButton(
+                      auth.isLoading ? 'Verifying…' : 'Verify',
+                      icon: auth.isLoading ? null : 'check',
+                      kind: BtnKind.green,
+                      onTap: auth.isLoading ? null : _verify,
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

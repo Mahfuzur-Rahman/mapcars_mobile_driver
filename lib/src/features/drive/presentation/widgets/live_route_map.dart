@@ -508,10 +508,7 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
                         // The sheet takes what is left, and its body scrolls if
                         // that is not enough — its footer stays on screen.
                         if (widget.sheet != null)
-                          Flexible(child: widget.sheet!)
-                        // No sheet: keep the overlays clear of the screen edge.
-                        else
-                          const SizedBox(height: 4),
+                          Flexible(child: widget.sheet!),
                       ],
                     ),
                   );

@@ -236,23 +236,31 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
 
   Future<void> _requestDeletionDialog(DriverDocument doc, String title) async {
     final reasonController = TextEditingController();
-    final confirmed = await showDeletionRequestDialog(
-      context,
-      title: title,
-      fileName: doc.originalFileName,
-      reason: reasonController,
-    );
+    try {
+      final confirmed = await showDeletionRequestDialog(
+        context,
+        title: title,
+        fileName: doc.originalFileName,
+        reason: reasonController,
+      );
 
-    if (confirmed == true) {
-      try {
-        await ref
-            .read(driverDocumentsServiceProvider)
-            .requestDeletion(doc.id, reason: reasonController.text);
-        _toast('Deletion request submitted to admin.');
-        await _load();
-      } catch (e) {
-        _toast('Failed to submit deletion request.');
+      if (confirmed == true) {
+        try {
+          await ref
+              .read(driverDocumentsServiceProvider)
+              .requestDeletion(doc.id, reason: reasonController.text);
+          _toast('Deletion request submitted to admin.');
+          await _load();
+        } catch (e) {
+          _toast('Failed to submit deletion request.');
+        }
       }
+    } finally {
+      // The dialog's future completes when it is popped, but its exit
+      // animation (~150ms) is still drawing the TextField - disposing the
+      // controller now would make that last frame use a disposed controller.
+      Future<void>.delayed(
+          const Duration(milliseconds: 400), reasonController.dispose);
     }
   }
 

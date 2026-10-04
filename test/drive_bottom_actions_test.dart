@@ -6,7 +6,7 @@
 // the last children of the sheet's body: on a small phone with the 3-button nav
 // bar up, or with larger text, they were clipped, under the nav bar, or one
 // scroll away. These tests put each real screen on a 360x640 phone with a 48dp
-// nav bar at text scale 1.0 and 1.3 and demand the buttons are on screen and
+// nav bar at text scale 1.0, 1.3 and 2.0 and demand the buttons are on screen and
 // tappable as the screen stands.
 
 import 'package:dio/dio.dart';
@@ -163,8 +163,6 @@ Future<void> _settle(WidgetTester tester) async {
 void main() {
   for (final scale in [1.0, 1.3, 2.0]) {
     group('driving flow, text x$scale', () {
-      setUp(() {});
-
       testWidgets('home: "Go online" is reachable', (tester) async {
         installFakeMapAndLocation();
         await pumpOnSmallPhone(

@@ -224,6 +224,12 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
                             placeholder: 'Leave a comment (optional)',
                             controller: _commentCtrl,
                             editable: true,
+                            // "Submit rating" sits below this field. Without
+                            // extra bottom scroll padding, focusing reveals
+                            // only the field and the button ends up behind the
+                            // pinned bar: 12 gap + 46 button + 20 margin.
+                            scrollPadding:
+                                const EdgeInsets.fromLTRB(20, 20, 20, 12 + 46 + 20),
                           ),
                           const SizedBox(height: 12),
                           McGhostButton(

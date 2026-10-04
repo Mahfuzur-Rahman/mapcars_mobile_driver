@@ -54,6 +54,7 @@ class McField extends StatefulWidget {
     this.autofocus = false,
     this.onChanged,
     this.suffix,
+    this.scrollPadding = const EdgeInsets.all(20),
   });
   final String? icon;
   final String? placeholder;
@@ -71,6 +72,12 @@ class McField extends StatefulWidget {
   final bool autofocus;
   final ValueChanged<String>? onChanged;
   final Widget? suffix;
+
+  /// How much room the field keeps around itself when focusing scrolls it into
+  /// view (editable mode). Raise the bottom value when something sits below the
+  /// field that must stay visible above the keyboard - e.g. a button, with a
+  /// pinned McActionBar under the scroll body.
+  final EdgeInsets scrollPadding;
 
   @override
   State<McField> createState() => _McFieldState();
@@ -111,6 +118,7 @@ class _McFieldState extends State<McField> {
             obscureText: widget.obscure,
             autofocus: widget.autofocus,
             onChanged: widget.onChanged,
+            scrollPadding: widget.scrollPadding,
             cursorColor: Brand.blue,
             style: tw(FontWeight.w700, 15, Brand.ink),
             decoration: InputDecoration(

@@ -28,6 +28,8 @@ import 'package:mapcars_driver/src/features/account/presentation/settings_screen
 import 'package:mapcars_driver/src/features/account/presentation/vehicle_form_screen.dart';
 import 'package:mapcars_driver/src/features/account/presentation/vehicle_tier_screen.dart';
 import 'package:mapcars_driver/src/features/account/services/vehicle_service.dart';
+import 'package:mapcars_driver/src/features/auth/models/auth_state.dart';
+import 'package:mapcars_driver/src/features/auth/providers/auth_notifier.dart';
 import 'package:mapcars_driver/src/features/auth/services/driver_auth_service.dart';
 import 'package:mapcars_driver/src/features/drive/models/fare_chart.dart';
 import 'package:mapcars_driver/src/features/drive/presentation/trip_complete_screen.dart';
@@ -39,6 +41,7 @@ import 'package:mapcars_driver/src/features/navigate/services/search_history_ser
 import 'package:mapcars_driver/src/features/onboarding/presentation/documents_screen.dart';
 import 'package:mapcars_driver/src/features/onboarding/presentation/email_login_screen.dart';
 import 'package:mapcars_driver/src/features/onboarding/presentation/email_signup_screen.dart';
+import 'package:mapcars_driver/src/features/onboarding/presentation/email_verify_screen.dart';
 import 'package:mapcars_driver/src/features/onboarding/presentation/registration_screen.dart';
 import 'package:mapcars_driver/src/features/onboarding/presentation/under_review_screen.dart';
 import 'package:mapcars_driver/src/features/onboarding/presentation/verify_screen.dart';
@@ -204,6 +207,37 @@ Widget _app(Widget home,
       child: MaterialApp(theme: AppTheme.light, home: home),
     );
 
+/// The auth notifier with a pending email sign-up, as the verify screen finds
+/// it. [resendEmailOtp] only counts, so no network is needed.
+class _VerifyAuth extends AuthNotifier {
+  _VerifyAuth(super.service, super.ref, {String? error}) {
+    state = AuthState(email: 'driver@example.com', error: error);
+  }
+
+  int resends = 0;
+
+  @override
+  Future<bool> resendEmailOtp(String email) async {
+    resends++;
+    return true;
+  }
+}
+
+class _VerifyAuthHolder {
+  _VerifyAuthHolder({this.error});
+  final String? error;
+  late final _VerifyAuth notifier;
+}
+
+Widget _verifyApp(_VerifyAuthHolder holder) => _app(
+      const EmailVerifyScreen(),
+      overrides: [
+        authNotifierProvider.overrideWith((ref) => holder.notifier =
+            _VerifyAuth(ref.watch(driverAuthServiceProvider), ref,
+                error: holder.error)),
+      ],
+    );
+
 Finder _btn(String label) => find.widgetWithText(McButton, label);
 
 /// Lets async loads (profile, documents) land; not pumpAndSettle, because a
@@ -214,10 +248,14 @@ Future<void> _load(WidgetTester tester) async {
   }
 }
 
-/// Tap a field, as the driver does, then raise the keyboard.
-Future<void> _focusFirstField(WidgetTester tester) async {
-  await tester.ensureVisible(find.byType(TextField).first);
-  await tester.tap(find.byType(TextField).first);
+/// Tap a field, as the driver does, then raise the keyboard. [target] is what
+/// gets tapped when it is not the first TextField - e.g. the OtpInput, whose
+/// real TextField is hidden under its own tap target.
+Future<void> _focusFirstField(WidgetTester tester, [Finder? target]) async {
+  if (target == null) {
+    await tester.ensureVisible(find.byType(TextField).first);
+  }
+  await tester.tap(target ?? find.byType(TextField).first);
   await tester.pump();
   await showKeyboard(tester);
   await tester.pump(const Duration(milliseconds: 300));
@@ -331,6 +369,37 @@ void main() {
         expectReachableWithoutScrolling(tester, _btn('Back online'));
       });
 
+      testWidgets('trip complete: with the comment keyboard up, "Submit '
+          'rating" is scrolled above the pinned bar, not hidden behind it',
+          (tester) async {
+        await pumpOnSmallPhone(
+          tester,
+          _app(TripCompleteScreen(trip: _completedTrip()), overrides: [
+            fareChartProvider
+                .overrideWith((ref) => Completer<FareChart>().future),
+          ]),
+          textScale: scale,
+        );
+        await tester.pump();
+
+        // Focus as a driver would; the field's own scroll-into-view runs (no
+        // test-side ensureVisible after the keyboard is up).
+        final field = find.byType(TextField).first;
+        await tester.ensureVisible(field);
+        await tester.tap(field);
+        await tester.pump();
+        await showKeyboard(tester);
+        await tester.pump(const Duration(milliseconds: 600));
+
+        expectReachableWithoutScrolling(
+            tester, find.widgetWithText(McGhostButton, 'Submit rating'));
+        final submit =
+            tester.getRect(find.widgetWithText(McGhostButton, 'Submit rating'));
+        final bar = tester.getRect(find.byType(McActionBar));
+        expect(submit.bottom, lessThanOrEqualTo(bar.top + 0.01),
+            reason: '"Submit rating" $submit is behind the pinned bar $bar');
+      });
+
       // --- Under review ----------------------------------------------------
       testWidgets('under review: nothing overflows and "Continue to home" is '
           'reachable', (tester) async {
@@ -423,6 +492,61 @@ void main() {
         await tester.pump(const Duration(milliseconds: 300));
 
         expectReachableWithoutScrolling(tester, _btn('Create account'));
+      });
+
+      // --- Verify email: the live action is the pinned one -----------------
+      // While the code is live, "Verify" is pinned. Once it expires, "Verify"
+      // can do nothing, so "Resend code" - which used to be a link in the
+      // scroll body, behind a dead-looking pinned button - takes its place.
+      testWidgets('verify email: "Verify" is pinned while the code is live, '
+          '"Resend code" once it expires (keyboard open)', (tester) async {
+        final auth = _VerifyAuthHolder();
+        await pumpOnSmallPhone(tester, _verifyApp(auth), textScale: scale);
+        await tester.pump();
+        await _focusFirstField(tester, find.byType(OtpInput));
+
+        expect(find.text('Code expires in 3:00'), findsWidgets);
+        expectReachableWithoutScrolling(tester, _btn('Verify'));
+        expect(_btn('Resend code'), findsNothing);
+
+        await tester.pump(const Duration(seconds: 181));
+
+        expect(find.text('Code expired'), findsOneWidget);
+        expectReachableWithoutScrolling(tester, _btn('Resend code'));
+        // The dead "Verify" is gone, not left looking enabled.
+        expect(_btn('Verify'), findsNothing);
+        // The countdown text stays in the content, not in the bar.
+        expect(
+            find.ancestor(
+                of: find.text('Code expired'),
+                matching: find.byType(McActionBar)),
+            findsNothing);
+
+        // And it works: tapping it asks for a new code and the pinned action
+        // goes back to "Verify".
+        await tester.tap(_btn('Resend code'));
+        await tester.pump();
+        expect(auth.notifier.resends, 1);
+        expect(find.text('Code expires in 3:00'), findsWidgets);
+        expectReachableWithoutScrolling(tester, _btn('Verify'));
+      });
+
+      testWidgets('verify email: an error sits in the pinned bar, also once '
+          'the code has expired', (tester) async {
+        final auth = _VerifyAuthHolder(error: 'That code is not right.');
+        await pumpOnSmallPhone(tester, _verifyApp(auth), textScale: scale);
+        await tester.pump();
+        await _focusFirstField(tester, find.byType(OtpInput));
+        await tester.pump(const Duration(seconds: 181));
+
+        expectReachableWithoutScrolling(
+            tester, find.text('That code is not right.'));
+        expect(
+            find.ancestor(
+                of: find.text('That code is not right.'),
+                matching: find.byType(McActionBar)),
+            findsOneWidget);
+        expectReachableWithoutScrolling(tester, _btn('Resend code'));
       });
 
       // --- A failed submit's message lands next to the pinned button -------
