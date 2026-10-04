@@ -43,9 +43,16 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   LatLng? _lastFix;
   BitmapDescriptor? _requestIcon;
 
+  /// Captured in initState: Riverpod asserts the element is still mounted on
+  /// every `ref` use, and by `dispose()` it is not — `ref.read` there throws
+  /// and `stop()` never runs. The provider is not autoDispose, so this
+  /// reference outlives the screen.
+  late final DispatchBoardController _board;
+
   @override
   void initState() {
     super.initState();
+    _board = ref.read(dispatchBoardProvider.notifier);
     _drawRequestIcon().then((icon) {
       if (mounted) setState(() => _requestIcon = icon);
     });
@@ -199,7 +206,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     // Only the requests board is screen-local — location reporting must keep
     // running through an active trip (or any other screen) while online; see
     // `DriverLocationReportingController`.
-    ref.read(dispatchBoardProvider.notifier).stop();
+    unawaited(_board.stop());
     super.dispose();
   }
 

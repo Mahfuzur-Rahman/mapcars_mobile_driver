@@ -278,9 +278,16 @@ class TripService {
         return Trip.fromJson(res.data!);
       });
 
-  Future<Trip> start(String tripId) => apiCall(() async {
-        final res =
-            await _dio.post<Map<String, dynamic>>('$_base/$tripId/start');
+  /// `POST /trips/{id}/start`. [pin] is the 4 digits the customer read out at
+  /// the kerb; the API verifies it (and caps wrong attempts), so the check no
+  /// longer rests on the phone alone. A wrong or exhausted PIN comes back as a
+  /// 400 whose message the [ApiException] carries. Omitted when the trip has no
+  /// PIN to enter — the API accepts an empty body.
+  Future<Trip> start(String tripId, {String? pin}) => apiCall(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '$_base/$tripId/start',
+          data: pin == null ? null : {'pin': pin},
+        );
         return Trip.fromJson(res.data!);
       });
 

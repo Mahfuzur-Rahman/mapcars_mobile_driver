@@ -119,8 +119,14 @@ workflows:
 
       - name: Flutter build IPA
         script: |
+          # Crash reports tag errors with this (AppConfig.appVersion); without the
+          # define every iOS error log arrives with no version. The build number
+          # after '+' is passed separately below, so only the semver part goes here.
+          APP_VERSION=$(grep '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//; s/+.*//' | tr -d '\r[:space:]')
+          echo "Building app version $APP_VERSION"
           flutter build ipa --release \
             --build-number=$NEXT_BUILD_NUMBER \
+            --dart-define=APP_VERSION=$APP_VERSION \
             --export-options-plist=/Users/builder/export_options.plist
 
     artifacts:

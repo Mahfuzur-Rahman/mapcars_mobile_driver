@@ -65,7 +65,12 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
 
     setState(() => _busy = true);
     try {
-      final updated = await ref.read(tripServiceProvider).start(trip.id);
+      // The on-phone check above is only a UX pre-check; the API re-verifies
+      // the PIN and its rejection (wrong PIN / too many attempts) is shown below.
+      final updated = await ref.read(tripServiceProvider).start(
+            trip.id,
+            pin: _entered.length == 4 ? _entered.join() : null,
+          );
       if (!mounted) return;
       context.go('/driving', extra: updated);
     } catch (e) {

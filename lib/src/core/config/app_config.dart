@@ -42,7 +42,11 @@ class AppConfig {
     }
   }
 
-  static bool get isDev => env == AppEnv.local;
+  /// `APP_ENV` defaults to `local`, so a release build made without an explicit
+  /// `--dart-define=APP_ENV=...` would otherwise ship the developer walk-through
+  /// menu (and its dev-only routes) to the stores. A release binary is never
+  /// "dev", whatever the define says.
+  static bool get isDev => env == AppEnv.local && !kReleaseMode;
 
   /// App version for crash reports — pass at build time:
   /// `flutter build apk --dart-define=APP_VERSION=1.2.0`. Empty when unset,

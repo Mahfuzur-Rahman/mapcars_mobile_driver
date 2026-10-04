@@ -333,8 +333,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   Future<void> _applyAuth(AuthResult result) async {
-    // Write token into the Dio interceptor provider.
+    // Write both tokens into the Dio interceptor providers. The refresh token
+    // used to be set only by restore(), so a fresh sign-in had none until the
+    // next app launch and was signed out when the access token lapsed. Assigned
+    // even when null, so a previous account's token is never paired with this
+    // account's access token.
     _ref.read(authTokenProvider.notifier).state = result.token;
+    _ref.read(refreshTokenProvider.notifier).state = result.refreshToken;
     final expiresAt =
         DateTime.now().add(Duration(minutes: result.expiresInMinutes));
     state =
