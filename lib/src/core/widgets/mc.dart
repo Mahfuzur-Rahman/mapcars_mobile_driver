@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -424,26 +426,137 @@ class McAvatar extends StatelessWidget {
       );
 }
 
+/// Bottom padding for anything drawn flush with the bottom of the screen: the
+/// design's 28dp where there is no system inset, otherwise 12dp clear of the
+/// nav bar / home indicator.
+///
+/// Android 15 forces edge-to-edge, so a 3-button nav bar (48dp) sits *over*
+/// the app — a fixed 28 left the lower half of the last button under it, and
+/// taps there were swallowed by the system.
+double _bottomPadding(BuildContext context) =>
+    math.max(28, 12 + MediaQuery.paddingOf(context).bottom);
+
 /// Rounded bottom sheet used on map screens.
+///
+/// [child] is the sheet's body and scrolls whenever it doesn't fit — a small
+/// phone, larger text, a long address. [footer] (the screen's primary actions)
+/// sits below the body and never scrolls, so it is always on screen; put the
+/// buttons that complete the screen's job there:
+///
+/// ```dart
+/// McSheet(
+///   footer: McButton('Start trip', onTap: _start),
+///   child: Column(mainAxisSize: MainAxisSize.min, children: [...details]),
+/// )
+/// ```
+///
+/// The sheet sizes to its content up to [maxHeight] — or, when that is null,
+/// ~85% of the space it is given, so the top of the map and its floating
+/// controls stay uncovered. Its paper runs under the system nav bar while its
+/// content stays 12dp clear of it (28dp when there is no inset, as before).
 class McSheet extends StatelessWidget {
-  const McSheet({super.key, required this.child, this.height});
+  const McSheet({super.key, required this.child, this.footer, this.maxHeight});
+
   final Widget child;
-  final double? height;
+  final Widget? footer;
+  final double? maxHeight;
+
+  /// Share of the available height a sheet may take when no [maxHeight] is set.
+  static const double defaultHeightFactor = 0.85;
+
   @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        height: height,
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-        decoration: const BoxDecoration(
-          color: Brand.paper,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-          boxShadow: Brand.sheetShadow,
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SheetHandle(),
-          Flexible(child: child),
-        ]),
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final available = constraints.hasBoundedHeight
+              ? constraints.maxHeight
+              : MediaQuery.sizeOf(context).height;
+          final cap = math.min(
+              maxHeight ?? available * defaultHeightFactor, available);
+          return ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: cap),
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.fromLTRB(20, 12, 20, _bottomPadding(context)),
+              decoration: const BoxDecoration(
+                color: Brand.paper,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+                boxShadow: Brand.sheetShadow,
+              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const SheetHandle(),
+                Flexible(child: SingleChildScrollView(child: child)),
+                if (footer != null) ...[
+                  const SizedBox(height: 12),
+                  footer!,
+                ],
+              ]),
+            ),
+          );
+        },
       );
+}
+
+/// Pinned footer for a full-screen page's primary action — one button, or two
+/// that belong together (Save / Cancel), stacked.
+///
+/// Put it in the Scaffold **body**, under an `Expanded` scrolling content area,
+/// not in `bottomNavigationBar` — only the body is lifted above the keyboard:
+///
+/// ```dart
+/// Scaffold(
+///   backgroundColor: Brand.bg,
+///   body: SafeArea(
+///     bottom: false, // the bar handles the bottom inset itself
+///     child: Column(children: [
+///       header,
+///       Expanded(child: SingleChildScrollView(child: form)),
+///       McActionBar(children: [
+///         McButton('Save', onTap: _save),
+///         McGhostButton('Cancel', onTap: _cancel),
+///       ]),
+///     ]),
+///   ),
+/// )
+/// ```
+///
+/// It adds the bottom system inset to its own padding, so its background runs
+/// under the nav bar while the buttons stay clear of it. Under a SafeArea that
+/// already consumed the inset it reads 0 there, so nothing is counted twice.
+/// [color] should match the page background (most pages are [Brand.bg]).
+class McActionBar extends StatelessWidget {
+  const McActionBar({super.key, required this.children, this.color = Brand.bg});
+
+  final List<Widget> children;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    // Checked here rather than in the const constructor, where reading a list's
+    // length would break `const McActionBar(children: [...])`.
+    assert(children.isNotEmpty && children.length <= 2,
+        'A pinned footer holds one or two buttons — more belongs in the page.');
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+          22, 12, 22, 12 + MediaQuery.paddingOf(context).bottom),
+      // The tab bar's and the menu drawer footer's hairline: marks where the
+      // scrolling content ends without a new colour or shadow.
+      decoration: BoxDecoration(
+        color: color,
+        border: const Border(top: BorderSide(color: Brand.fill)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            children[i],
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class SheetHandle extends StatelessWidget {
@@ -457,41 +570,88 @@ class SheetHandle extends StatelessWidget {
       );
 }
 
+/// Opens a modal bottom sheet the driver can always finish: the one way to
+/// show a pop-up sheet in this app — use it instead of `showModalBottomSheet`.
+///
+/// What it adds over the bare call, each of which a sheet here got wrong:
+///  • the content scrolls, and the sheet may grow past Flutter's default
+///    9/16-of-the-screen cap (`isScrollControlled`) — the six-entry Language
+///    list used to overflow that cap on a small phone;
+///  • it stays below the status bar (`useSafeArea`) and its bottom padding
+///    clears the nav bar / home indicator, so the last option isn't under it;
+///  • it rides above the soft keyboard, measured from the sheet's own context.
+///
+/// [builder] returns the sheet's content only (include `SheetHandle()` as
+/// before); this supplies the paper, the rounded top and the padding.
+///
+/// [floating] is for a sheet that draws its own card floating above the
+/// bottom edge (the "Navigate with" picker): the route is transparent and only
+/// the system inset is added below the card — the card keeps its own margin.
+Future<T?> showMcBottomSheet<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+  bool floating = false,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: floating ? Colors.transparent : Brand.paper,
+    shape: floating
+        ? null
+        : const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+    builder: (sheetContext) {
+      // `useSafeArea` handles the top and sides only; the bottom inset is left
+      // in the sheet's MediaQuery for us to pad, so the paper still runs under
+      // the nav bar. Read from the sheet's own context: the page's MediaQuery
+      // may have had the keyboard taken out of it by its Scaffold.
+      final keyboard = MediaQuery.viewInsetsOf(sheetContext).bottom;
+      final bottom = floating
+          ? MediaQuery.paddingOf(sheetContext).bottom
+          : _bottomPadding(sheetContext);
+      return Padding(
+        padding: EdgeInsets.only(bottom: keyboard),
+        child: SingleChildScrollView(
+          padding: floating
+              ? EdgeInsets.only(bottom: bottom)
+              : EdgeInsets.fromLTRB(20, 16, 20, bottom),
+          child: builder(sheetContext),
+        ),
+      );
+    },
+  );
+}
+
 /// Bottom sheet offering "take a selfie" vs "choose from gallery" — the shared
 /// entry point for any photo upload (profile picture, vehicle photos, docs).
 /// Returns null if the driver dismisses it without picking either.
 Future<ImageSource?> showPictureSourcePicker(BuildContext context) {
-  return showModalBottomSheet<ImageSource>(
-    context: context,
-    backgroundColor: Brand.paper,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (ctx) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SheetHandle(),
-          const McTitle('Add a photo', size: 20),
-          const SizedBox(height: 6),
-          Text('Take a selfie or choose one from your gallery',
-              style: tw(FontWeight.w600, 13.5, Brand.sub)),
-          const SizedBox(height: 16),
-          _PictureSourceTile(
-            icon: 'camera',
-            title: 'Take a selfie',
-            onTap: () => Navigator.pop(ctx, ImageSource.camera),
-          ),
-          const SizedBox(height: 10),
-          _PictureSourceTile(
-            icon: 'gallery',
-            title: 'Choose from gallery',
-            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-          ),
-        ],
-      ),
+  return showMcBottomSheet<ImageSource>(
+    context,
+    builder: (ctx) => Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SheetHandle(),
+        const McTitle('Add a photo', size: 20),
+        const SizedBox(height: 6),
+        Text('Take a selfie or choose one from your gallery',
+            style: tw(FontWeight.w600, 13.5, Brand.sub)),
+        const SizedBox(height: 16),
+        _PictureSourceTile(
+          icon: 'camera',
+          title: 'Take a selfie',
+          onTap: () => Navigator.pop(ctx, ImageSource.camera),
+        ),
+        const SizedBox(height: 10),
+        _PictureSourceTile(
+          icon: 'gallery',
+          title: 'Choose from gallery',
+          onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+        ),
+      ],
     ),
   );
 }

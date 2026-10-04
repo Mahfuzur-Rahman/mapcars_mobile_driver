@@ -361,8 +361,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
           if (focus == null)
             Align(
               alignment: Alignment.bottomCenter,
+              // Sized to its content: a fixed 300 had no room for the nav-bar
+              // inset the sheet now pads, or for larger text.
               child: McSheet(
-                height: 300,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -25,9 +25,9 @@ class NavHandoff {
     required double lng,
     String? label,
   }) async {
-    final choice = await showModalBottomSheet<_NavApp>(
-      context: context,
-      backgroundColor: Colors.transparent,
+    final choice = await showMcBottomSheet<_NavApp>(
+      context,
+      floating: true,
       builder: (sheetContext) => _NavAppSheet(label: label),
     );
     if (choice == null || !context.mounted) return false;
@@ -108,58 +108,58 @@ class _NavAppSheet extends StatelessWidget {
       if (Platform.isIOS) _NavApp.appleMaps,
     ];
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Navigate with', style: tw(FontWeight.w900, 16, Brand.ink)),
-            if (label != null) ...[
-              const SizedBox(height: 3),
-              Text(label!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: tw(FontWeight.w600, 12.5, Brand.sub)),
-            ],
-            const SizedBox(height: 14),
-            for (final app in apps)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => Navigator.pop(context, app),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: Brand.fill,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(app.icon, size: 21, color: Brand.ink),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(app.label,
-                              style: tw(FontWeight.w800, 14.5, Brand.ink)),
-                        ),
-                        const Icon(Icons.chevron_right,
-                            size: 20, color: Brand.faint),
-                      ],
-                    ),
+    // No SafeArea: showMcBottomSheet already keeps the card off the status
+    // bar and adds the nav-bar inset beneath it — wrapping it here too would
+    // count that inset twice.
+    return Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Navigate with', style: tw(FontWeight.w900, 16, Brand.ink)),
+          if (label != null) ...[
+            const SizedBox(height: 3),
+            Text(label!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: tw(FontWeight.w600, 12.5, Brand.sub)),
+          ],
+          const SizedBox(height: 14),
+          for (final app in apps)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.pop(context, app),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Brand.fill,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(app.icon, size: 21, color: Brand.ink),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(app.label,
+                            style: tw(FontWeight.w800, 14.5, Brand.ink)),
+                      ),
+                      const Icon(Icons.chevron_right,
+                          size: 20, color: Brand.faint),
+                    ],
                   ),
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }

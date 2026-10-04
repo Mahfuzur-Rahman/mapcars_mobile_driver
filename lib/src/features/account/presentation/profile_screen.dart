@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/config/env.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/widgets/driver_tab_bar.dart';
 import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
 import '../../auth/services/driver_auth_service.dart';
@@ -67,7 +68,7 @@ class _ProfileVehicleScreenState extends ConsumerState<ProfileVehicleScreen> {
 
     return Scaffold(
       backgroundColor: Brand.bg,
-      bottomNavigationBar: const _DriverTabBar(active: 'account'),
+      bottomNavigationBar: const DriverTabBar(active: DriverTab.account),
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
@@ -289,49 +290,6 @@ class _ProfileVehicleScreenState extends ConsumerState<ProfileVehicleScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _DriverTabBar extends StatelessWidget {
-  const _DriverTabBar({required this.active});
-  final String active;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = <(String, String, String, String)>[
-      ('wheel', 'Drive', 'drive', '/home'),
-      ('chart', 'Earnings', 'earn', '/earnings'),
-      ('user', 'Account', 'account', '/profile'),
-    ];
-    return Container(
-      height: 84,
-      decoration: const BoxDecoration(
-        color: Brand.paper,
-        border: Border(top: BorderSide(color: Brand.fill)),
-      ),
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Row(
-        children: [
-          for (final (ic, label, key, route) in items)
-            Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => context.go(route),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Ico(ic, size: 24, color: key == active ? Brand.blue : Brand.faint),
-                    const SizedBox(height: 3),
-                    Text(label,
-                        style: tw(FontWeight.w800, 11,
-                            key == active ? Brand.blue : Brand.faint)),
-                  ],
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }

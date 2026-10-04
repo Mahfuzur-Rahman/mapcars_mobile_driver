@@ -134,92 +134,90 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
           Align(
             alignment: Alignment.bottomCenter,
             child: McSheet(
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        const McAvatar(size: 52, color: Brand.blue),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(customerName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: tw(FontWeight.w900, 17, Brand.ink)),
-                              if (rating != null) ...[
-                                const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    const Ico('starF', size: 14, color: Brand.star),
-                                    const SizedBox(width: 4),
-                                    Text(rating.toStringAsFixed(1),
-                                        style: tw(FontWeight.w800, 13, Brand.sub)),
-                                  ],
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        // No phone button: the API deliberately never sends a
-                        // customer phone number (the driver's `Customer` model carries
-                        // name + rating only), so it could only ever have been
-                        // decorative. Chat is the channel that actually works.
-                        McBadge(
-                          count: unread,
-                          child: _SquareButton(
-                              icon: 'msg',
-                              semanticLabel: unread == 0
-                                  ? 'Message passenger'
-                                  : 'Message passenger, $unread unread',
-                              onTap: () => context.push('/chat', extra: trip)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    if (_pinRequired)
-                      _PinPad(
-                        entered: _entered,
-                        error: _pinError,
-                        onDigit: _tapDigit,
-                        onBackspace: _backspace,
-                      )
-                    else
-                      McCard(
-                        padding: 14,
-                        child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const McAvatar(size: 52, color: Brand.blue),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Ico('shield', size: 18, color: Brand.sub),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text('No PIN on this trip — confirm the '
-                                  'customer by name before setting off.',
-                                  style: tw(FontWeight.w700, 12.5, Brand.sub)),
-                            ),
+                            Text(customerName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: tw(FontWeight.w900, 17, Brand.ink)),
+                            if (rating != null) ...[
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  const Ico('starF', size: 14, color: Brand.star),
+                                  const SizedBox(width: 4),
+                                  Text(rating.toStringAsFixed(1),
+                                      style: tw(FontWeight.w800, 13, Brand.sub)),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),
-                    const SizedBox(height: 14),
-                    McButton(
-                      _busy ? 'Starting…' : 'Start trip',
-                      icon: 'nav',
-                      kind: BtnKind.green,
-                      onTap: (_busy || !_pinSatisfied) ? null : _startTrip,
+                      // No phone button: the API deliberately never sends a
+                      // customer phone number (the driver's `Customer` model carries
+                      // name + rating only), so it could only ever have been
+                      // decorative. Chat is the channel that actually works.
+                      McBadge(
+                        count: unread,
+                        child: _SquareButton(
+                            icon: 'msg',
+                            semanticLabel: unread == 0
+                                ? 'Message passenger'
+                                : 'Message passenger, $unread unread',
+                            onTap: () => context.push('/chat', extra: trip)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  if (_pinRequired)
+                    _PinPad(
+                      entered: _entered,
+                      error: _pinError,
+                      onDigit: _tapDigit,
+                      onBackspace: _backspace,
+                    )
+                  else
+                    McCard(
+                      padding: 14,
+                      child: Row(
+                        children: [
+                          const Ico('shield', size: 18, color: Brand.sub),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text('No PIN on this trip — confirm the '
+                                'customer by name before setting off.',
+                                style: tw(FontWeight.w700, 12.5, Brand.sub)),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    McDangerButton(
-                      'Cancel job',
-                      icon: 'x',
-                      height: 48,
-                      onTap: _busy ? null : _cancelJob,
-                    ),
-                  ],
-                ),
+                  const SizedBox(height: 14),
+                  McButton(
+                    _busy ? 'Starting…' : 'Start trip',
+                    icon: 'nav',
+                    kind: BtnKind.green,
+                    onTap: (_busy || !_pinSatisfied) ? null : _startTrip,
+                  ),
+                  const SizedBox(height: 10),
+                  McDangerButton(
+                    'Cancel job',
+                    icon: 'x',
+                    height: 48,
+                    onTap: _busy ? null : _cancelJob,
+                  ),
+                ],
               ),
             ),
           ),

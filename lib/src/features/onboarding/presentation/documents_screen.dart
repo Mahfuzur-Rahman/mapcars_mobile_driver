@@ -51,6 +51,79 @@ final Set<String> _expiringTypes = {
 
 const _red = Color(0xFFDC2626);
 
+/// Asks the driver to confirm a deletion request, with an optional reason
+/// typed into [reason]. Drivers can't delete documents themselves — submitting
+/// only sends the request to an admin. Resolves true when submitted.
+@visibleForTesting
+Future<bool?> showDeletionRequestDialog(
+  BuildContext context, {
+  required String title,
+  required String fileName,
+  required TextEditingController reason,
+}) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      // Typing a reason raises the keyboard, leaving the dialog under half a
+      // small screen. Scrolling the title + content keeps Cancel / Submit
+      // pinned and on screen instead of overflowing past them.
+      scrollable: true,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('Request Deletion', style: tw(FontWeight.w900, 16, Brand.ink)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Document: $title', style: tw(FontWeight.w700, 13, Brand.ink)),
+          Text(fileName, style: tw(FontWeight.w500, 12, Brand.sub)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Text(
+              'Drivers cannot delete documents directly. Submitting this request sends it to admin for review.',
+              style: tw(FontWeight.w600, 11.5, Colors.amber.shade900),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text('Reason (Optional)', style: tw(FontWeight.w700, 12, Brand.ink)),
+          const SizedBox(height: 4),
+          TextField(
+            controller: reason,
+            maxLines: 2,
+            style: tw(FontWeight.w500, 12.5, Brand.ink),
+            decoration: InputDecoration(
+              hintText: 'e.g. Uploaded wrong file, replacing with renewed licence...',
+              hintStyle: tw(FontWeight.w500, 12, Brand.faint),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              contentPadding: const EdgeInsets.all(10),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text('Cancel', style: tw(FontWeight.w700, 13, Brand.sub)),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _red,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          child: Text('Submit Request', style: tw(FontWeight.w700, 13, Colors.white)),
+        ),
+      ],
+    ),
+  );
+}
+
 class DocumentsScreen extends ConsumerStatefulWidget {
   const DocumentsScreen({super.key});
 
@@ -163,62 +236,11 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
 
   Future<void> _requestDeletionDialog(DriverDocument doc, String title) async {
     final reasonController = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Request Deletion', style: tw(FontWeight.w900, 16, Brand.ink)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Document: $title', style: tw(FontWeight.w700, 13, Brand.ink)),
-            Text(doc.originalFileName, style: tw(FontWeight.w500, 12, Brand.sub)),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.amber.shade200),
-              ),
-              child: Text(
-                'Drivers cannot delete documents directly. Submitting this request sends it to admin for review.',
-                style: tw(FontWeight.w600, 11.5, Colors.amber.shade900),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text('Reason (Optional)', style: tw(FontWeight.w700, 12, Brand.ink)),
-            const SizedBox(height: 4),
-            TextField(
-              controller: reasonController,
-              maxLines: 2,
-              style: tw(FontWeight.w500, 12.5, Brand.ink),
-              decoration: InputDecoration(
-                hintText: 'e.g. Uploaded wrong file, replacing with renewed licence...',
-                hintStyle: tw(FontWeight.w500, 12, Brand.faint),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                contentPadding: const EdgeInsets.all(10),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: tw(FontWeight.w700, 13, Brand.sub)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text('Submit Request', style: tw(FontWeight.w700, 13, Colors.white)),
-          ),
-        ],
-      ),
+    final confirmed = await showDeletionRequestDialog(
+      context,
+      title: title,
+      fileName: doc.originalFileName,
+      reason: reasonController,
     );
 
     if (confirmed == true) {

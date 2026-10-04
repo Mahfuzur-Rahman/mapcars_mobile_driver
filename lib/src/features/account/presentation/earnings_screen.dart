@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/config/env.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/utils/money.dart';
+import '../../../core/widgets/driver_tab_bar.dart';
 import '../../../core/widgets/mc.dart';
 import '../../drive/services/trip_service.dart';
 import '../models/week_earnings.dart';
@@ -101,7 +102,7 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
 
     return Scaffold(
       backgroundColor: Brand.bg,
-      bottomNavigationBar: const _DriverTabBar(active: 'earn'),
+      bottomNavigationBar: const DriverTabBar(active: DriverTab.earnings),
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
@@ -329,49 +330,6 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen>
           const SizedBox(width: 12),
           Expanded(child: Text(label, style: tw(FontWeight.w700, 15))),
           Text(value, style: tw(FontWeight.w900, 15)),
-        ],
-      ),
-    );
-  }
-}
-
-class _DriverTabBar extends StatelessWidget {
-  const _DriverTabBar({required this.active});
-  final String active;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = <(String, String, String, String)>[
-      ('wheel', 'Drive', 'drive', '/home'),
-      ('chart', 'Earnings', 'earn', '/earnings'),
-      ('user', 'Account', 'account', '/profile'),
-    ];
-    return Container(
-      height: 84,
-      decoration: const BoxDecoration(
-        color: Brand.paper,
-        border: Border(top: BorderSide(color: Brand.fill)),
-      ),
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Row(
-        children: [
-          for (final (ic, label, key, route) in items)
-            Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => context.go(route),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Ico(ic, size: 24, color: key == active ? Brand.blue : Brand.faint),
-                    const SizedBox(height: 3),
-                    Text(label,
-                        style: tw(FontWeight.w800, 11,
-                            key == active ? Brand.blue : Brand.faint)),
-                  ],
-                ),
-              ),
-            ),
         ],
       ),
     );
