@@ -138,6 +138,10 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
 
   Widget _sheet(Trip trip, RouteProgress? progress, int unread) {
     return McSheet(
+      // LiveRouteMap already bounds this sheet to the space under the top
+      // controls and overlays; McSheet's own 85% share on top of that would
+      // waste ~15% of it and push the footer under the nav bar at large text.
+      maxHeight: double.infinity,
       // Arrival and cancel are pinned; the address and the Navigate shortcut
       // are what scrolls on a small phone or at larger text.
       footer: Column(

@@ -93,161 +93,173 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
     return Scaffold(
       backgroundColor: Brand.bg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 50, 20, 30),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Trip's over — nothing to go back to, but Home and the menu
-              // stay reachable.
-              const McNavHeader(showBack: false),
-              const SizedBox(height: 18),
-              Column(
+        // "Back online" is pinned below the scroll in an McActionBar, which
+        // handles the bottom inset itself (so no SafeArea there).
+        bottom: false,
+        child: Column(children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 50, 20, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: Brand.gradGreen,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0x5F31A424),
-                          blurRadius: 20,
-                          offset: Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Ico('check', size: 34, color: Colors.white),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const McTitle('Trip complete', size: 22),
-                  const SizedBox(height: 6),
-                  Text('You earned',
-                      style: tw(FontWeight.w700, 13.5, Brand.sub)),
-                  const SizedBox(height: 4),
-                  Text(formatGbp(earningsPence),
-                      style: tw(FontWeight.w900, 40, Brand.ink, -1)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              McCard(
-                padding: 16,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _BreakdownRow('Trip fare', formatGbp(farePence)),
-                    _BreakdownRow('MAP CARS fee ($feeLabel%)', '−${formatGbp(feePence)}'),
-                    _BreakdownRow('Tip', formatGbp(tipPence)),
-                    Container(
-                      height: 1,
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      color: Brand.fill,
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Your earnings',
-                            style: tw(FontWeight.w900, 15, Brand.ink)),
-                        Text(formatGbp(earningsPence),
-                            style: tw(FontWeight.w900, 18, Brand.green)),
-                      ],
-                    ),
-                    if (paymentLine != null)
+                  // Trip's over — nothing to go back to, but Home and the menu
+                  // stay reachable.
+                  const McNavHeader(showBack: false),
+                  const SizedBox(height: 18),
+                  Column(
+                    children: [
                       Container(
-                        margin: const EdgeInsets.only(top: 12),
-                        padding: const EdgeInsets.only(top: 12),
+                        width: 64,
+                        height: 64,
                         decoration: const BoxDecoration(
-                          border: Border(
-                            top: BorderSide(color: Brand.fill, width: 1),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Ico(isCash ? 'cash' : 'card',
-                                size: 18, color: Brand.sub),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(paymentLine,
-                                  style: tw(FontWeight.w700, 13, Brand.sub)),
+                          shape: BoxShape.circle,
+                          gradient: Brand.gradGreen,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x5F31A424),
+                              blurRadius: 20,
+                              offset: Offset(0, 8),
                             ),
                           ],
                         ),
+                        child: const Center(
+                          child: Ico('check', size: 34, color: Colors.white),
+                        ),
                       ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              McCard(
-                padding: 14,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Rate ${trip.customer?.name ?? 'your customer'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: tw(FontWeight.w900, 14, Brand.ink)),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: List.generate(5, (i) {
-                        final star = i + 1;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: GestureDetector(
-                            onTap: _submitted
-                                ? null
-                                : () => setState(() => _rating = star),
-                            child: Ico(
-                              star <= _rating ? 'starF' : 'star',
-                              size: 30,
-                              color: star <= _rating ? Brand.star : Brand.line,
+                      const SizedBox(height: 8),
+                      const McTitle('Trip complete', size: 22),
+                      const SizedBox(height: 6),
+                      Text('You earned',
+                          style: tw(FontWeight.w700, 13.5, Brand.sub)),
+                      const SizedBox(height: 4),
+                      Text(formatGbp(earningsPence),
+                          style: tw(FontWeight.w900, 40, Brand.ink, -1)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  McCard(
+                    padding: 16,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _BreakdownRow('Trip fare', formatGbp(farePence)),
+                        _BreakdownRow('MAP CARS fee ($feeLabel%)',
+                            '−${formatGbp(feePence)}'),
+                        _BreakdownRow('Tip', formatGbp(tipPence)),
+                        Container(
+                          height: 1,
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          color: Brand.fill,
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Your earnings',
+                                style: tw(FontWeight.w900, 15, Brand.ink)),
+                            Text(formatGbp(earningsPence),
+                                style: tw(FontWeight.w900, 18, Brand.green)),
+                          ],
+                        ),
+                        if (paymentLine != null)
+                          Container(
+                            margin: const EdgeInsets.only(top: 12),
+                            padding: const EdgeInsets.only(top: 12),
+                            decoration: const BoxDecoration(
+                              border: Border(
+                                top: BorderSide(color: Brand.fill, width: 1),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Ico(isCash ? 'cash' : 'card',
+                                    size: 18, color: Brand.sub),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(paymentLine,
+                                      style:
+                                          tw(FontWeight.w700, 13, Brand.sub)),
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      }),
+                      ],
                     ),
-                    if (!_submitted) ...[
-                      const SizedBox(height: 12),
-                      McField(
-                        icon: 'edit',
-                        placeholder: 'Leave a comment (optional)',
-                        controller: _commentCtrl,
-                        editable: true,
-                      ),
-                      const SizedBox(height: 12),
-                      McGhostButton(
-                        _submitting ? 'Submitting…' : 'Submit rating',
-                        height: 46,
-                        onTap:
-                            (_rating == 0 || _submitting) ? null : _submitRating,
-                      ),
-                    ] else ...[
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          const Ico('check', size: 16, color: Brand.green),
-                          const SizedBox(width: 6),
-                          Text('Thanks for rating your customer!',
-                              style: tw(FontWeight.w800, 13, Brand.green)),
+                  ),
+                  const SizedBox(height: 14),
+                  McCard(
+                    padding: 14,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Rate ${trip.customer?.name ?? 'your customer'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: tw(FontWeight.w900, 14, Brand.ink)),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: List.generate(5, (i) {
+                            final star = i + 1;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: GestureDetector(
+                                onTap: _submitted
+                                    ? null
+                                    : () => setState(() => _rating = star),
+                                child: Ico(
+                                  star <= _rating ? 'starF' : 'star',
+                                  size: 30,
+                                  color:
+                                      star <= _rating ? Brand.star : Brand.line,
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                        if (!_submitted) ...[
+                          const SizedBox(height: 12),
+                          McField(
+                            icon: 'edit',
+                            placeholder: 'Leave a comment (optional)',
+                            controller: _commentCtrl,
+                            editable: true,
+                          ),
+                          const SizedBox(height: 12),
+                          McGhostButton(
+                            _submitting ? 'Submitting…' : 'Submit rating',
+                            height: 46,
+                            onTap: (_rating == 0 || _submitting)
+                                ? null
+                                : _submitRating,
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              const Ico('check', size: 16, color: Brand.green),
+                              const SizedBox(width: 6),
+                              Text('Thanks for rating your customer!',
+                                  style: tw(FontWeight.w800, 13, Brand.green)),
+                            ],
+                          ),
                         ],
-                      ),
-                    ],
-                  ],
-                ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              McButton(
-                'Back online',
-                icon: 'nav',
-                kind: BtnKind.green,
-                onTap: () => context.go('/home'),
-              ),
-            ],
+            ),
           ),
-        ),
+          McActionBar(children: [
+            McButton(
+              'Back online',
+              icon: 'nav',
+              kind: BtnKind.green,
+              onTap: () => context.go('/home'),
+            ),
+          ]),
+        ]),
       ),
     );
   }

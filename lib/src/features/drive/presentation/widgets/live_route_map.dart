@@ -102,6 +102,11 @@ class LiveRouteMap extends ConsumerStatefulWidget {
   /// banner stack directly *above* it. Those two used to be pinned 14dp from
   /// the bottom of the map — which is behind the sheet, where they could be
   /// neither seen nor tapped.
+  ///
+  /// The sheet is already bounded here — it gets only the space left under
+  /// [top] and the overlays — so build it with `McSheet(maxHeight:
+  /// double.infinity)`; McSheet's default 85% share would be taken off that
+  /// a second time.
   final Widget? sheet;
 
   @override
@@ -109,6 +114,11 @@ class LiveRouteMap extends ConsumerStatefulWidget {
 }
 
 class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
+  /// Most of the space under the top controls the pill and the route-error
+  /// banner may take together; the rest is the sheet's, enough for its handle
+  /// and a two-button footer even at 2.0 text on a 640dp phone.
+  static const double _overlayShare = 0.4;
+
   /// How far the driver must move before the route is re-fetched from Google.
   static const _rerouteMeters = 150.0;
 
@@ -433,39 +443,79 @@ class _LiveRouteMapState extends ConsumerState<LiveRouteMap> {
             children: [
               if (widget.top != null) widget.top!,
               Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (!_following)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 14, bottom: 10),
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: _RecentrePill(onTap: () {
-                              setState(() => _following = true);
-                              final here = _motion.position;
-                              if (here != null) _followCamera(here);
-                            }),
+                // The bottom block: the pill, the route-error banner and the
+                // sheet. Its overlays get at most [_overlayShare] of the space
+                // under the top controls, so the sheet always keeps enough for
+                // its handle and pinned footer — a banner or a pill must never
+                // be able to push "Complete trip" under the nav bar.
+                child: LayoutBuilder(builder: (context, box) {
+                  final cap = box.maxHeight * _overlayShare;
+                  final scale = MediaQuery.textScalerOf(context).scale(1);
+                  // Rough heights (padding + text) of the overlays, 10dp gaps
+                  // included. When both would not fit under the cap the pill
+                  // goes - it is a convenience; the error banner explains why
+                  // the route is missing.
+                  final pillNeeds = 30 + 18 * scale;
+                  final bannerNeeds = 30 + 34 * scale;
+                  final showPill = !_following
+                      ? (_routeError == null || cap >= pillNeeds + bannerNeeds)
+                      : false;
+                  final hasOverlays = showPill || _routeError != null;
+                  return Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (hasOverlays)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(maxHeight: cap),
+                            // Unconstrained vertically, clipped to the cap and
+                            // anchored to the bottom: if the estimate above is
+                            // ever short, the top of the stack is what is lost.
+                            child: UnconstrainedBox(
+                              constrainedAxis: Axis.horizontal,
+                              alignment: Alignment.bottomCenter,
+                              clipBehavior: Clip.hardEdge,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (showPill)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                          right: 14, bottom: 10),
+                                      child: Align(
+                                        alignment: Alignment.centerRight,
+                                        child: _RecentrePill(onTap: () {
+                                          setState(() => _following = true);
+                                          final here = _motion.position;
+                                          if (here != null) _followCamera(here);
+                                        }),
+                                      ),
+                                    ),
+                                  if (_routeError != null)
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          14, 0, 14, 10),
+                                      child: _RouteErrorBanner(
+                                          message: _routeError!),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      if (_routeError != null)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                          child: _RouteErrorBanner(message: _routeError!),
-                        ),
-                      // The sheet takes what is left, and its body scrolls if
-                      // that is not enough — its footer stays on screen.
-                      if (widget.sheet != null)
-                        Flexible(child: widget.sheet!)
-                      // No sheet: keep the overlays clear of the screen edge.
-                      else
-                        const SizedBox(height: 4),
-                    ],
-                  ),
-                ),
+                        // The sheet takes what is left, and its body scrolls if
+                        // that is not enough — its footer stays on screen.
+                        if (widget.sheet != null)
+                          Flexible(child: widget.sheet!)
+                        // No sheet: keep the overlays clear of the screen edge.
+                        else
+                          const SizedBox(height: 4),
+                      ],
+                    ),
+                  );
+                }),
               ),
             ],
           ),
@@ -530,7 +580,12 @@ class _RouteErrorBanner extends StatelessWidget {
             const Icon(Icons.error_outline, size: 18, color: Brand.sub),
             const SizedBox(width: 9),
             Expanded(
+              // Two lines, then an ellipsis: the in-car message ("Couldn't reach
+              // the maps service. Check your connection.") is three lines at
+              // 2.0 text and the sheet's footer needs that space more.
               child: Text(message,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 12,

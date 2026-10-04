@@ -106,197 +106,214 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
     return Scaffold(
       backgroundColor: Brand.bg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const McNavHeader(fallback: '/intro', showMenu: false),
-              const SizedBox(height: 18),
-
-              // Segmented tab switch for Phone / Email
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Brand.line.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
+        // The primary action ("Send code" / "Sign in") is pinned in an
+        // McActionBar, which handles the bottom inset itself (so no SafeArea
+        // there) and rides above the keyboard. Google, Apple and "Sign up" are
+        // alternatives, so they stay in the scrolling body.
+        bottom: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: _TabButton(
-                        label: 'Phone number',
-                        icon: 'phone',
-                        active: isPhone,
-                        onTap: () => setState(() {
-                          _activeTab = AuthTab.phone;
-                          _localError = null;
-                        }),
-                      ),
-                    ),
-                    Expanded(
-                      child: _TabButton(
-                        label: 'Email & password',
-                        icon: 'mail',
-                        active: !isPhone,
-                        onTap: () => setState(() {
-                          _activeTab = AuthTab.email;
-                          _localError = null;
-                        }),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 22),
+                    const McNavHeader(fallback: '/intro', showMenu: false),
+                    const SizedBox(height: 18),
 
-              if (isPhone) ...[
-                const McTitle('Log in with phone', size: 25),
-                const SizedBox(height: 8),
-                Text("We'll text a 6-digit code to confirm it's you.",
-                    style: tw(FontWeight.w600, 15, Brand.sub)),
-                const SizedBox(height: 22),
-                Row(
-                  children: [
-                    const McField(value: '🇬🇧 +44', width: 104),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: McField(
-                        controller: _phoneCtrl,
-                        editable: true,
-                        keyboardType: TextInputType.phone,
-                      ),
-                    ),
-                  ],
-                ),
-                if (codeSent) ...[
-                  const SizedBox(height: 22),
-                  Row(
-                    children: [
-                      const Expanded(
-                          child: Divider(color: Brand.line, height: 1)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text('ENTER CODE',
-                            style: tw(FontWeight.w800, 12, Brand.faint)),
-                      ),
-                      const Expanded(
-                          child: Divider(color: Brand.line, height: 1)),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  OtpInput(length: 6, boxHeight: 56, onCompleted: _verifyOtp),
-                  const SizedBox(height: 16),
-                  if (AppConfig.showDevOtp && auth.devOtpCode != null) ...[
+                    // Segmented tab switch for Phone / Email
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFCF3D5),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFEECB5F)),
+                        color: Brand.line.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Row(
+                      // Equal-height tabs: at 1.3 text one label wraps and the
+                      // other does not, and the active pill would jump.
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _TabButton(
+                                label: 'Phone number',
+                                icon: 'phone',
+                                active: isPhone,
+                                onTap: () => setState(() {
+                                  _activeTab = AuthTab.phone;
+                                  _localError = null;
+                                }),
+                              ),
+                            ),
+                            Expanded(
+                              child: _TabButton(
+                                label: 'Email & password',
+                                icon: 'mail',
+                                active: !isPhone,
+                                onTap: () => setState(() {
+                                  _activeTab = AuthTab.email;
+                                  _localError = null;
+                                }),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+
+                    if (isPhone) ...[
+                      const McTitle('Log in with phone', size: 25),
+                      const SizedBox(height: 8),
+                      Text("We'll text a 6-digit code to confirm it's you.",
+                          style: tw(FontWeight.w600, 15, Brand.sub)),
+                      const SizedBox(height: 22),
+                      Row(
                         children: [
-                          const Ico('phone',
-                              size: 16, color: Color(0xFFB07310)),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Dev OTP: ${auth.devOtpCode}',
-                            style: tw(FontWeight.w700, 14,
-                                const Color(0xFFB07310)),
+                          const McField(value: '🇬🇧 +44', width: 104),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: McField(
+                              controller: _phoneCtrl,
+                              editable: true,
+                              keyboardType: TextInputType.phone,
+                            ),
                           ),
                         ],
                       ),
+                      if (codeSent) ...[
+                        const SizedBox(height: 22),
+                        Row(
+                          children: [
+                            const Expanded(
+                                child: Divider(color: Brand.line, height: 1)),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('ENTER CODE',
+                                  style: tw(FontWeight.w800, 12, Brand.faint)),
+                            ),
+                            const Expanded(
+                                child: Divider(color: Brand.line, height: 1)),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        OtpInput(length: 6, boxHeight: 56, onCompleted: _verifyOtp),
+                        const SizedBox(height: 16),
+                        if (AppConfig.showDevOtp && auth.devOtpCode != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFCF3D5),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFEECB5F)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Ico('phone',
+                                    size: 16, color: Color(0xFFB07310)),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Dev OTP: ${auth.devOtpCode}',
+                                  style: tw(FontWeight.w700, 14,
+                                      const Color(0xFFB07310)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        GestureDetector(
+                          onTap: auth.isLoading ? null : _sendCode,
+                          child: Text('Resend code',
+                              style: tw(FontWeight.w700, 13.5, Brand.sub)),
+                        ),
+                      ],
+                    ] else ...[
+                      const McTitle('Log in with email', size: 25),
+                      const SizedBox(height: 8),
+                      Text('Welcome back! Enter your email and password.',
+                          style: tw(FontWeight.w600, 15, Brand.sub)),
+                      const SizedBox(height: 22),
+                      McField(
+                        icon: 'mail',
+                        placeholder: 'Email address',
+                        controller: _emailCtrl,
+                        editable: true,
+                        autofocus: true,
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      const SizedBox(height: 12),
+                      McField(
+                        icon: 'lock',
+                        placeholder: 'Password',
+                        controller: _passwordCtrl,
+                        editable: true,
+                        obscure: _obscurePassword,
+                        suffix: GestureDetector(
+                          onTap: () =>
+                              setState(() => _obscurePassword = !_obscurePassword),
+                          child: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 20,
+                            color: Brand.sub,
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 22),
+                    const McDividerLabel('or'),
+                    const SizedBox(height: 14),
+                    McGoogleButton(
+                      loading: auth.isLoading,
+                      onTap: auth.isLoading ? null : _continueWithGoogle,
                     ),
-                    const SizedBox(height: 12),
+                    // App Review 4.8: wherever Google sign-in is offered on iOS,
+                    // Sign in with Apple must be too.
+                    if (AppleSignInService.isAvailable) ...[
+                      const SizedBox(height: 12),
+                      McAppleButton(
+                        loading: auth.isLoading,
+                        onTap: auth.isLoading ? null : _continueWithApple,
+                      ),
+                    ],
+
+                    const SizedBox(height: 20),
+                    const McDividerLabel("Don't have an account?"),
+                    const SizedBox(height: 14),
+                    McButton(
+                      'Sign up',
+                      icon: 'user',
+                      kind: BtnKind.green,
+                      onTap: () => context.go('/email-signup'),
+                    ),
                   ],
-                  GestureDetector(
-                    onTap: auth.isLoading ? null : _sendCode,
-                    child: Text('Resend code',
-                        style: tw(FontWeight.w700, 13.5, Brand.sub)),
-                  ),
-                ],
-              ] else ...[
-                const McTitle('Log in with email', size: 25),
-                const SizedBox(height: 8),
-                Text('Welcome back! Enter your email and password.',
-                    style: tw(FontWeight.w600, 15, Brand.sub)),
-                const SizedBox(height: 22),
-                McField(
-                  icon: 'mail',
-                  placeholder: 'Email address',
-                  controller: _emailCtrl,
-                  editable: true,
-                  autofocus: true,
-                  keyboardType: TextInputType.emailAddress,
                 ),
-                const SizedBox(height: 12),
-                McField(
-                  icon: 'lock',
-                  placeholder: 'Password',
-                  controller: _passwordCtrl,
-                  editable: true,
-                  obscure: _obscurePassword,
-                  suffix: GestureDetector(
-                    onTap: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                    child: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      size: 20,
-                      color: Brand.sub,
-                    ),
-                  ),
+              ),
+            ),
+            McActionBar(
+              // Validation / API errors sit with the button, so they are on
+              // screen after tapping it, keyboard up or not.
+              notice: error == null ? null : McErrorBanner(error),
+              children: [
+                McButton(
+                  auth.isLoading
+                      ? 'Please wait…'
+                      : (isPhone
+                          ? (codeSent ? 'Resend code' : 'Send code')
+                          : 'Sign in'),
+                  icon: auth.isLoading ? null : 'check',
+                  onTap: auth.isLoading
+                      ? null
+                      : (isPhone ? _sendCode : _submitEmailLogin),
                 ),
               ],
-
-              if (error != null) ...[
-                const SizedBox(height: 14),
-                McErrorBanner(error),
-              ],
-
-              const SizedBox(height: 24),
-              McButton(
-                auth.isLoading
-                    ? 'Please wait…'
-                    : (isPhone
-                        ? (codeSent ? 'Resend code' : 'Send code')
-                        : 'Sign in'),
-                icon: auth.isLoading ? null : 'check',
-                onTap: auth.isLoading
-                    ? null
-                    : (isPhone ? _sendCode : _submitEmailLogin),
-              ),
-              const SizedBox(height: 18),
-              const McDividerLabel('or'),
-              const SizedBox(height: 14),
-              McGoogleButton(
-                loading: auth.isLoading,
-                onTap: auth.isLoading ? null : _continueWithGoogle,
-              ),
-              // App Review 4.8: wherever Google sign-in is offered on iOS,
-              // Sign in with Apple must be too.
-              if (AppleSignInService.isAvailable) ...[
-                const SizedBox(height: 12),
-                McAppleButton(
-                  loading: auth.isLoading,
-                  onTap: auth.isLoading ? null : _continueWithApple,
-                ),
-              ],
-
-              const SizedBox(height: 20),
-              const McDividerLabel("Don't have an account?"),
-              const SizedBox(height: 14),
-              McButton(
-                'Sign up',
-                icon: 'user',
-                kind: BtnKind.green,
-                onTap: () => context.go('/email-signup'),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -340,12 +357,17 @@ class _TabButton extends StatelessWidget {
           children: [
             Ico(icon, size: 16, color: active ? Brand.blue : Brand.sub),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: tw(
-                active ? FontWeight.w800 : FontWeight.w600,
-                13.5,
-                active ? Brand.ink : Brand.sub,
+            // Flexible: at 1.3 text "Email & password" overflowed the half-
+            // width tab by ~17px on a 360dp phone; it now wraps to two lines.
+            Flexible(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: tw(
+                  active ? FontWeight.w800 : FontWeight.w600,
+                  13.5,
+                  active ? Brand.ink : Brand.sub,
+                ),
               ),
             ),
           ],

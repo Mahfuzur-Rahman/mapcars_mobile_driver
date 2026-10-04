@@ -143,4 +143,81 @@ void main() {
     ));
     expect(find.text('Saving…'), findsOneWidget);
   });
+
+  testWidgets('a notice sits above the buttons, inside the bar, on screen '
+      'with the keyboard up', (tester) async {
+    await pumpOnSmallPhone(
+      tester,
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          backgroundColor: Brand.bg,
+          body: Column(children: [
+            const Expanded(child: SizedBox()),
+            McActionBar(
+              notice: const McErrorBanner('Please fill in every field.'),
+              children: [McButton('Save', onTap: () {})],
+            ),
+          ]),
+        ),
+      ),
+      keyboardOpen: true,
+    );
+
+    expectReachableWithoutScrolling(tester, find.text('Please fill in every field.'));
+    expectReachableWithoutScrolling(tester, find.widgetWithText(McButton, 'Save'));
+    expect(
+        tester.getRect(find.byType(McErrorBanner)).bottom,
+        lessThanOrEqualTo(tester.getRect(find.widgetWithText(McButton, 'Save')).top),
+        reason: 'the notice is above the button');
+    expect(
+        find.ancestor(
+            of: find.byType(McErrorBanner), matching: find.byType(McActionBar)),
+        findsOneWidget);
+  });
+
+  // The "Ref:" diagnosis line on the offline message is long and used by
+  // support, so it must stay readable - by scrolling inside the notice - while
+  // never pushing the button off a small, keyboard-covered screen.
+  const longNotice =
+      "Can't reach Mapcars. Please check your internet connection and try "
+      'again.\nRef: connection-error · DNS lookup failed for '
+      'gce-test.mapcars.uk · attempt 3 of 3 · android 15 · app 1.0.0+6 · '
+      'trace 7f3a9c21-4be0-4d52-9a67-1c2e8f0b5d44';
+  for (final scale in const [1.0, 1.3, 2.0]) {
+    testWidgets('a long notice scrolls inside the bar and never pushes the '
+        'button off screen (keyboard open, text ×$scale)', (tester) async {
+      await pumpOnSmallPhone(
+        tester,
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            backgroundColor: Brand.bg,
+            body: Column(children: [
+              const Expanded(child: SizedBox()),
+              McActionBar(
+                notice: const McErrorBanner(longNotice),
+                children: [McButton('Save', onTap: () {})],
+              ),
+            ]),
+          ),
+        ),
+        textScale: scale,
+        keyboardOpen: true,
+      );
+
+      expectReachableWithoutScrolling(
+          tester, find.widgetWithText(McButton, 'Save'));
+      // Nothing is cut: the full text is in the tree, in a scrollable.
+      expect(find.textContaining('trace 7f3a9c21'), findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byType(McActionBar),
+              matching: find.byType(SingleChildScrollView)),
+          findsOneWidget);
+      // And the bar stays a modest share of what the keyboard leaves.
+      expect(tester.getRect(find.byType(McActionBar)).height,
+          lessThanOrEqualTo((640 - kKeyboardHeight) * 0.6));
+    });
+  }
 }

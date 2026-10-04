@@ -187,13 +187,17 @@ class _ProfileVehicleScreenState extends ConsumerState<ProfileVehicleScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
+                                  // A Wrap, not a Row: at 1.3 text the name and the tier badge
+                                  // overflowed this narrow column by ~3px; now the badge drops
+                                  // below the name when they do not fit side by side.
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 3,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
                                     children: [
-                                      Expanded(
-                                        child: Text(
-                                          '${_vehicle!.make} ${_vehicle!.model}',
-                                          style: tw(FontWeight.w900, 16),
-                                        ),
+                                      Text(
+                                        '${_vehicle!.make} ${_vehicle!.model}',
+                                        style: tw(FontWeight.w900, 16),
                                       ),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

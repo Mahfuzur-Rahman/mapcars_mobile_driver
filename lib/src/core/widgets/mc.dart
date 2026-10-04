@@ -458,6 +458,9 @@ double _bottomPadding(BuildContext context) =>
 /// ~85% of the space it is given, so the top of the map and its floating
 /// controls stay uncovered. Its paper runs under the system nav bar while its
 /// content stays 12dp clear of it (28dp when there is no inset, as before).
+/// A sheet whose parent already bounds its height (the one inside
+/// `LiveRouteMap`) passes `maxHeight: double.infinity` so the 85% share is not
+/// taken off the space it was already given.
 class McSheet extends StatelessWidget {
   const McSheet({super.key, required this.child, this.footer, this.maxHeight});
 
@@ -528,10 +531,36 @@ class McSheet extends StatelessWidget {
 /// already consumed the inset it reads 0 there, so nothing is counted twice.
 /// [color] should match the page background (most pages are [Brand.bg]).
 class McActionBar extends StatelessWidget {
-  const McActionBar({super.key, required this.children, this.color = Brand.bg});
+  const McActionBar({
+    super.key,
+    required this.children,
+    this.color = Brand.bg,
+    this.notice,
+  });
 
   final List<Widget> children;
   final Color color;
+
+  /// A message for the buttons below it — a failed submit's error. It sits
+  /// inside the bar, so it is on screen whenever the button is: an error left
+  /// at the end of the scroll body lands below the visible area (or under the
+  /// keyboard) when the pinned button is the thing the driver just tapped.
+  /// It is capped (about three lines, at most a quarter of the visible height)
+  /// and scrolls inside itself when longer, so a long message never pushes the
+  /// button off screen and is never truncated.
+  final Widget? notice;
+
+  /// The notice may take about three lines (banner padding included) at the
+  /// current text size, but never more than a quarter of what is left of the
+  /// screen — with the keyboard up that is the part above it, which the page
+  /// body's MediaQuery no longer reports, so read it from the view.
+  double _noticeMaxHeight(BuildContext context) {
+    final view = View.of(context);
+    final visible =
+        (view.physicalSize.height - view.viewInsets.bottom) / view.devicePixelRatio;
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    return math.min(visible * 0.25, 3 * 14 * 1.4 * scale + 24);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -553,6 +582,17 @@ class McActionBar extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (notice != null) ...[
+            // Capped, and scrolling inside itself: a long message (the offline
+            // one carries a "Ref:" line for support) must stay readable, but
+            // must not grow the bar until it pushes the button off a small
+            // screen. Never ellipsized - the cap is what scrolls.
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: _noticeMaxHeight(context)),
+              child: SingleChildScrollView(child: notice!),
+            ),
+            const SizedBox(height: 10),
+          ],
           for (var i = 0; i < children.length; i++) ...[
             if (i > 0) const SizedBox(height: 10),
             children[i],

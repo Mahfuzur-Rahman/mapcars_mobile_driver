@@ -123,6 +123,10 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
   Widget _sheet(Trip trip, RouteProgress? progress, double? fare, int unread,
       bool showPayment) {
     return McSheet(
+      // LiveRouteMap already bounds this sheet to the space under the top
+      // controls and overlays; McSheet's own 85% share on top of that would
+      // waste ~15% of it and push the footer under the nav bar at large text.
+      maxHeight: double.infinity,
       // Complete trip — and Message passenger, the button that sits directly
       // above it — are pinned. The payment banner and the stats are what scroll,
       // so a long cash-collection line can never push Complete off screen.

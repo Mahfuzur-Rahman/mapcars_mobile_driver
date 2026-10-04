@@ -57,16 +57,33 @@ void main() {
         lessThanOrEqualTo(640 - 18));
   });
 
-  testWidgets('with a 48dp nav bar it grows by the inset, content unchanged',
+  // The bottom padding is max(18, inset), not 18 + inset: the tab band is 66dp
+  // and the 18dp of breathing room the design always had doubles as the
+  // clearance, so a 34dp iPhone home indicator doesn't leave a 52dp dead strip.
+  testWidgets('with a 48dp nav bar the bottom pad is the inset itself',
       (tester) async {
     await pumpOnSmallPhone(tester, host(DriverTab.earnings), navBarInset: 0);
     final bare = tester.getRect(find.text('Earnings'));
 
     await pumpOnSmallPhone(tester, host(DriverTab.earnings));
-    expect(tester.getRect(find.byType(DriverTabBar)).height, 84 + 48);
-    // Same label, same distance from the top of the bar — just lifted clear.
+    expect(tester.getRect(find.byType(DriverTabBar)).height, 66 + 48);
+    // Same label, same distance from the top of the bar — lifted by the 30dp
+    // by which the inset exceeds the usual 18dp pad.
     expect(tester.getRect(find.text('Earnings')),
-        bare.shift(const Offset(0, -48)));
+        bare.shift(const Offset(0, -30.0)));
+  });
+
+  testWidgets('a 34dp home indicator gives 100dp, not 118dp', (tester) async {
+    await pumpOnSmallPhone(tester, host(DriverTab.earnings), navBarInset: 34);
+    expect(tester.getRect(find.byType(DriverTabBar)).height, 66 + 34);
+    expect(tester.getRect(find.text('Earnings')).bottom,
+        lessThanOrEqualTo(640 - 34));
+  });
+
+  testWidgets('an inset under 18dp changes nothing (still 84dp)',
+      (tester) async {
+    await pumpOnSmallPhone(tester, host(DriverTab.earnings), navBarInset: 10);
+    expect(tester.getRect(find.byType(DriverTabBar)).height, 84);
   });
 
   testWidgets('highlights the active tab and announces it as selected',

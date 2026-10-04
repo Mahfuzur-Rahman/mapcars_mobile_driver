@@ -115,13 +115,19 @@ class _FakeMapsService extends GoogleMapsService {
       );
 }
 
+/// What the real service says for every Dio error (maps_service.dart
+/// `_networkMessage`) - the in-car banner text. Two lines at 1.0 text, and
+/// three at 2.0 before the banner caps it.
+const _realMapsError =
+    "Couldn't reach the maps service. Check your connection.";
+
 class _FailingMapsService extends GoogleMapsService {
   @override
   Future<DirectionsResult> directions({
     required LatLng origin,
     required LatLng destination,
   }) async =>
-      throw const MapsServiceException('Route unavailable right now.');
+      throw const MapsServiceException(_realMapsError);
 }
 
 final _overrides = <Override>[
@@ -349,7 +355,7 @@ void main() {
   // then, stacked above the sheet in a column with no top bound, they could be
   // pushed up under the floating nav / ETA banner or into the status bar. They
   // must now sit between the top controls and the sheet, whole, and be tappable.
-  for (final scale in [1.0, 1.3]) {
+  for (final scale in [1.0, 1.3, 2.0]) {
     group('live route map overlays, text x$scale', () {
       final screens = <String, ({
         Widget Function(Trip) build,
@@ -419,10 +425,15 @@ void main() {
 
             final overlays = <String, Rect>{};
             final pill = find.text('Re-centre');
-            final banner = find.text('Route unavailable right now.');
-            expect(pill.evaluate().isNotEmpty, pan);
+            final banner = find.text(_realMapsError);
+            // At huge text with the banner up the pill yields to the sheet's
+            // footer; at 1.0 / 1.3 it must always be there when panned.
+            final pillMayYield = scale > 1.3 && fail;
+            final pillShown = pill.evaluate().isNotEmpty;
+            if (!pan) expect(pillShown, isFalse);
+            if (pan && !pillMayYield) expect(pillShown, isTrue);
             expect(banner.evaluate().isNotEmpty, fail);
-            if (pan) overlays['Re-centre pill'] = boxOf(pill);
+            if (pillShown) overlays['Re-centre pill'] = boxOf(pill);
             if (fail) overlays['route-error banner'] = boxOf(banner);
 
             for (final o in overlays.entries) {
@@ -450,7 +461,7 @@ void main() {
             }
 
             // Tappable across the whole pill, not just at its centre.
-            if (pan) {
+            if (pillShown) {
               final pillTap = find
                   .ancestor(of: pill, matching: find.byType(GestureDetector))
                   .first;
@@ -473,7 +484,7 @@ void main() {
             // stays on screen.
             expectReachableWithoutScrolling(tester, _btn(screen.value.primary));
 
-            if (pan) {
+            if (pillShown) {
               await tester.tap(pill);
               await _settle(tester);
               expect(find.text('Re-centre'), findsNothing,
@@ -484,6 +495,57 @@ void main() {
       }
     });
   }
+
+  // The sheet is bounded twice if both LiveRouteMap (the space under the top
+  // controls and overlays) and McSheet (85% of what it is given) cap it - the
+  // second cap wastes ~15% of the free space and, with the route-error banner
+  // and the pill up at huge text, pushed "Complete trip" under the nav bar.
+  group('live route map sheet is bounded once', () {
+    testWidgets('driving, both overlays, text x2.0: Complete trip is '
+        'reachable and nothing overflows', (tester) async {
+      final map = installFakeMapAndLocation(fix: _fix);
+      await pumpOnSmallPhone(
+        tester,
+        _app(DrivingScreen(trip: _trip()), extra: [
+          googleMapsServiceProvider.overrideWithValue(_FailingMapsService()),
+        ]),
+        textScale: 2.0,
+      );
+      await _settle(tester);
+      map.userPans();
+      await _settle(tester);
+
+      expect(find.text(_realMapsError), findsOneWidget);
+      expectReachableWithoutScrolling(tester, _btn('Complete trip'));
+    });
+
+    testWidgets('arrived, text x1.0, no overlays: the sheet may use all the '
+        'space under the floating nav (no dead band)', (tester) async {
+      installFakeMapAndLocation(fix: _fix);
+      await pumpOnSmallPhone(
+        tester,
+        _app(ArrivedScreen(trip: _trip()), extra: [
+          googleMapsServiceProvider.overrideWithValue(_FakeMapsService()),
+        ]),
+      );
+      await _settle(tester);
+
+      // The top block is the nav and its own padding; the sheet gets all of
+      // the screen below it.
+      final topBlock = tester.getRect(find
+          .ancestor(
+              of: find.byType(McFloatingNav), matching: find.byType(Padding))
+          .first);
+      final sheet = tester.getRect(find.byType(McSheet));
+      // The PIN-pad sheet is taller than the free space on a 640dp phone, so
+      // it must grow right up to the controls - not stop 15% (~79dp) short.
+      expect(sheet.top - topBlock.bottom, lessThan(1.0),
+          reason: 'sheet top ${sheet.top} leaves a '
+              '${sheet.top - topBlock.bottom}dp dead band under the controls '
+              '(bottom ${topBlock.bottom})');
+      expectReachableWithoutScrolling(tester, _btn('Start trip'));
+    });
+  });
 
   // The status label in the home top bar must be readable, not cut to "...".
   group('home status label', () {

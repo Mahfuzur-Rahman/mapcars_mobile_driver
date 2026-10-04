@@ -148,9 +148,18 @@ class _VehicleTierScreenState extends ConsumerState<VehicleTierScreen> {
     final pendingAppeal = _appeals.where((a) => a.isPending).firstOrNull;
     final pastAppeals = _appeals.where((a) => !a.isPending).toList();
 
+    // The appeal form is this screen's one job. Pin its submit button while the
+    // form is on screen; with an appeal already pending (or no vehicle) there is
+    // no action to pin, and the content just scrolls clear of the nav bar.
+    final showAppealForm = pendingAppeal == null && vehicle != null;
+    final pinned = !_loading && showAppealForm;
+
     return Scaffold(
       backgroundColor: Brand.bg,
       body: SafeArea(
+        // Bottom inset: the McActionBar adds it when pinned, else the scroll
+        // padding below does.
+        bottom: false,
         child: Column(
           children: [
             Padding(
@@ -162,8 +171,10 @@ class _VehicleTierScreenState extends ConsumerState<VehicleTierScreen> {
                     child: const Ico('chevL', size: 22, color: Brand.ink),
                   ),
                   const SizedBox(width: 12),
-                  const McTitle('Vehicle Tier & Appeal', size: 20),
-                  const Spacer(),
+                  // Expanded (not Spacer): at 1.3 text the title overflowed the
+                  // row by ~21px; it now wraps beside the menu button.
+                  const Expanded(child: McTitle('Vehicle Tier & Appeal', size: 20)),
+                  const SizedBox(width: 8),
                   const McMenuButton(),
                 ],
               ),
@@ -175,7 +186,8 @@ class _VehicleTierScreenState extends ConsumerState<VehicleTierScreen> {
                       onRefresh: _load,
                       child: SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                        padding: EdgeInsets.fromLTRB(20, 8, 20,
+                            pinned ? 16 : 32 + MediaQuery.paddingOf(context).bottom),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -207,7 +219,7 @@ class _VehicleTierScreenState extends ConsumerState<VehicleTierScreen> {
                             const SizedBox(height: 20),
 
                             // Submit Appeal Section (only if no pending appeal)
-                            if (pendingAppeal == null && vehicle != null) ...[
+                            if (showAppealForm) ...[
                               _buildAppealForm(vehicle.tier),
                               const SizedBox(height: 20),
                             ],
@@ -226,6 +238,7 @@ class _VehicleTierScreenState extends ConsumerState<VehicleTierScreen> {
                       ),
                     ),
             ),
+            if (pinned) _appealBar(),
           ],
         ),
       ),
@@ -478,6 +491,11 @@ class _VehicleTierScreenState extends ConsumerState<VehicleTierScreen> {
           const SizedBox(height: 6),
           TextField(
             controller: _reasonCtrl,
+            // The caret reveal only scrolls the first line of this 3-line
+            // field into view, so the lower lines can end up behind the pinned
+            // bar (~80dp) when the keyboard comes up. Extra bottom scroll
+            // padding makes the reveal bring the whole field above the bar.
+            scrollPadding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
             maxLines: 3,
             style: tw(FontWeight.w600, 13, Brand.ink),
             decoration: InputDecoration(
@@ -499,7 +517,12 @@ class _VehicleTierScreenState extends ConsumerState<VehicleTierScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Car Photos (Optional)', style: tw(FontWeight.w800, 12, Brand.sub)),
-              Text('Interior / Seats / Exterior', style: tw(FontWeight.w600, 11, Brand.faint)),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text('Interior / Seats / Exterior',
+                    textAlign: TextAlign.end,
+                    style: tw(FontWeight.w600, 11, Brand.faint)),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -578,24 +601,30 @@ class _VehicleTierScreenState extends ConsumerState<VehicleTierScreen> {
             ),
           ],
 
-          if (_submitError != null) ...[
-            const SizedBox(height: 12),
-            Text(_submitError!, style: tw(FontWeight.w700, 12.5, Colors.red)),
-          ],
-
-          if (_submitSuccess != null) ...[
-            const SizedBox(height: 12),
-            Text(_submitSuccess!, style: tw(FontWeight.w700, 12.5, Colors.green)),
-          ],
-
-          const SizedBox(height: 18),
-          McButton(
-            _submitting ? 'Submitting Appeal…' : 'Submit Appeal to Admin',
-            icon: _submitting ? null : 'send',
-            onTap: _submitting ? null : _submitAppeal,
-          ),
+          // The submit button, and the error / success line for it, are pinned
+          // below the scroll (see _appealBar) - not at the end of this card.
         ],
       ),
+    );
+  }
+
+  /// "Submit Appeal to Admin", pinned under the scroll while the appeal form is
+  /// on screen. Its result line is the bar's notice, so a validation error is
+  /// never left off-screen in the form while the button is at the bottom.
+  Widget _appealBar() {
+    return McActionBar(
+      notice: _submitError != null
+          ? Text(_submitError!, style: tw(FontWeight.w700, 12.5, Colors.red))
+          : _submitSuccess != null
+              ? Text(_submitSuccess!, style: tw(FontWeight.w700, 12.5, Colors.green))
+              : null,
+      children: [
+        McButton(
+          _submitting ? 'Submitting Appeal…' : 'Submit Appeal to Admin',
+          icon: _submitting ? null : 'send',
+          onTap: _submitting ? null : _submitAppeal,
+        ),
+      ],
     );
   }
 

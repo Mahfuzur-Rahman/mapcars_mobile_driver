@@ -116,6 +116,14 @@ class _SetRouteScreenState extends ConsumerState<SetRouteScreen> {
     context.push('/route-preview', extra: place);
   }
 
+  /// Room the last suggestion row needs below it so it scrolls fully clear of
+  /// the system nav bar / home indicator (Android 15 draws it over the app).
+  /// While the keyboard is up the engine reports `padding.bottom =
+  /// max(0, viewPadding - viewInsets)` on every platform - 0, as the keyboard
+  /// covers the nav bar / home indicator - so this needs no keyboard term.
+  double _bottomInset(BuildContext context) =>
+      MediaQuery.paddingOf(context).bottom;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -233,7 +241,7 @@ class _SetRouteScreenState extends ConsumerState<SetRouteScreen> {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
+      padding: EdgeInsets.fromLTRB(18, 4, 18, 18 + _bottomInset(context)),
       itemCount: _results.length,
       itemBuilder: (context, i) => _SuggestionRow(
         prediction: _results[i],
@@ -253,7 +261,7 @@ class _SetRouteScreenState extends ConsumerState<SetRouteScreen> {
       );
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
+      padding: EdgeInsets.fromLTRB(18, 4, 18, 18 + _bottomInset(context)),
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),

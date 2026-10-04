@@ -140,6 +140,10 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
 
   Widget _sheet(Trip trip, String customerName, double? rating, int unread) {
     return McSheet(
+      // LiveRouteMap already bounds this sheet to the space under the top
+      // controls and overlays; McSheet's own 85% share on top of that would
+      // waste ~15% of it and push the footer under the nav bar at large text.
+      maxHeight: double.infinity,
       // Start trip and Cancel job are pinned. The PIN pad stays in the body,
       // which scrolls on a small phone or at larger text.
       footer: Column(

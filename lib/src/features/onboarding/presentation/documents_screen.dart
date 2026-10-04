@@ -374,6 +374,9 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
     return Scaffold(
       backgroundColor: Brand.bg,
       body: SafeArea(
+        // "Submit for review" is pinned in an McActionBar, which handles the
+        // bottom inset itself (so no SafeArea there).
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -394,7 +397,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(22, 4, 22, 28),
+                      padding: const EdgeInsets.fromLTRB(22, 4, 22, 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -418,24 +421,28 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                             _docCategorySection(d),
                             const SizedBox(height: 12),
                           ],
-                          const SizedBox(height: 14),
-                          Opacity(
-                            opacity: _allRequiredUploaded ? 1 : 0.5,
-                            child: McButton(
-                              'Submit for review',
-                              icon: 'check',
-                              kind: BtnKind.grad,
-                              onTap: _allRequiredUploaded
-                                  ? () => context.go('/under-review')
-                                  : () => _toast(!_hasPicture
-                                      ? 'Add a profile picture first.'
-                                      : 'Upload all required documents first.'),
-                            ),
-                          ),
                         ],
                       ),
                     ),
             ),
+            // Pinned below the four long sections, so the driver never has to
+            // scroll to the bottom of the page to submit.
+            if (!_loading)
+              McActionBar(children: [
+                Opacity(
+                  opacity: _allRequiredUploaded ? 1 : 0.5,
+                  child: McButton(
+                    'Submit for review',
+                    icon: 'check',
+                    kind: BtnKind.grad,
+                    onTap: _allRequiredUploaded
+                        ? () => context.go('/under-review')
+                        : () => _toast(!_hasPicture
+                            ? 'Add a profile picture first.'
+                            : 'Upload all required documents first.'),
+                  ),
+                ),
+              ]),
           ],
         ),
       ),
@@ -626,7 +633,13 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 3),
-                Row(
+                // A Wrap, not a Row: the status chip + expiry date overflowed
+                // this column by ~6px at 360dp ("Deletion Requested" + "Exp:
+                // 31/12/2027") — now the date drops to a second line instead.
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 3,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -640,13 +653,11 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                         style: tw(FontWeight.w800, 10, statusColor),
                       ),
                     ),
-                    if (doc.expiresOn != null) ...[
-                      const SizedBox(width: 6),
+                    if (doc.expiresOn != null)
                       Text(
                         'Exp: ${doc.expiresOn!.day}/${doc.expiresOn!.month}/${doc.expiresOn!.year}',
                         style: tw(FontWeight.w500, 11, Brand.sub),
                       ),
-                    ],
                   ],
                 ),
               ],

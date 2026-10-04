@@ -10,17 +10,120 @@ import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
 import '../../auth/services/driver_auth_service.dart';
 
+/// Handle between a [DriverProfileForm] and the screen that hosts it.
+///
+/// The form scrolls, but its save button must not: the hosting screen pins it
+/// in a [DriverProfileSaveBar] under the scroll view, so it is always on screen
+/// (above the keyboard, clear of the nav bar). The screen creates one of these,
+/// hands it to the form and the bar, and disposes it:
+///
+/// ```dart
+/// final _form = DriverProfileFormController();
+/// ...
+/// Column(children: [
+///   Expanded(child: SingleChildScrollView(
+///     child: DriverProfileForm(controller: _form, onSubmitted: ...))),
+///   DriverProfileSaveBar(controller: _form, label: 'Save changes'),
+/// ])
+/// ```
+///
+/// Validation and the save itself still live in the form; this only lets the
+/// bar start them and show the result.
+class DriverProfileFormController extends ChangeNotifier {
+  Future<void> Function()? _submit;
+  bool _ready = false;
+  String? _formError;
+
+  /// True once the form has loaded the saved profile and can be submitted —
+  /// saving before that would overwrite the profile with blanks.
+  bool get ready => _ready;
+
+  /// The form's own validation message ("Please enter your full legal name."),
+  /// or null. An API error is shown from the auth state instead.
+  String? get formError => _formError;
+
+  /// Runs the form's validation and, if it passes, saves. No-op until [ready].
+  Future<void> submit() async {
+    if (!_ready) return;
+    await _submit?.call();
+  }
+
+  void _attach(Future<void> Function() submit) => _submit = submit;
+
+  /// The form is going away: forget it without notifying (the host is being
+  /// torn down in the same frame).
+  void _detach() {
+    _submit = null;
+    _ready = false;
+  }
+
+  void _setReady() {
+    _ready = true;
+    notifyListeners();
+  }
+
+  void _setFormError(String? message) {
+    if (_formError == message) return;
+    _formError = message;
+    notifyListeners();
+  }
+}
+
+/// The pinned "Save changes" / "Continue" bar for a [DriverProfileForm]: an
+/// [McActionBar] with the form's error (if any) just above it, so a validation
+/// message is never off-screen at the top of a scrolled form while the button
+/// sits at the bottom.
+class DriverProfileSaveBar extends ConsumerWidget {
+  const DriverProfileSaveBar({
+    super.key,
+    required this.controller,
+    required this.label,
+  });
+
+  final DriverProfileFormController controller;
+  final String label;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authNotifierProvider);
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final error = controller.formError ?? auth.error;
+        final busy = auth.isLoading;
+        // The error rides in the bar's capped, self-scrolling notice area, so a
+        // long one (the offline message with its "Ref:" line) is never cut and
+        // never pushes the button off a keyboard-covered screen.
+        return McActionBar(
+          notice: error == null
+              ? null
+              : Text(error, style: tw(FontWeight.w600, 13, Colors.red)),
+          children: [
+            McButton(
+              busy ? 'Saving…' : label,
+              icon: busy ? null : 'chevR',
+              onTap: (busy || !controller.ready) ? null : controller.submit,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// Shared "your details" form used by both the onboarding Registration step
 /// and the post-login Profile edit screen — full name, DOB, address,
 /// national ID, and a profile picture.
 class DriverProfileForm extends ConsumerStatefulWidget {
   const DriverProfileForm({
     super.key,
-    required this.submitLabel,
+    required this.controller,
     required this.onSubmitted,
   });
 
-  final String submitLabel;
+  /// Lets the hosting screen's pinned [DriverProfileSaveBar] submit this form.
+  /// The form has no button of its own.
+  final DriverProfileFormController controller;
   final VoidCallback onSubmitted;
 
   @override
@@ -39,11 +142,11 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
   bool _hasPicture = false;
   bool _marketingConsent = false;
   bool _loading = true;
-  String? _formError;
 
   @override
   void initState() {
     super.initState();
+    widget.controller._attach(_submit);
     _load();
   }
 
@@ -65,10 +168,12 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
       _marketingConsent = profile.marketingConsent;
     }
     setState(() => _loading = false);
+    widget.controller._setReady();
   }
 
   @override
   void dispose() {
+    widget.controller._detach();
     _nameCtrl.dispose();
     _addressCtrl.dispose();
     _nationalIdCtrl.dispose();
@@ -109,14 +214,14 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
     final fullName = _nameCtrl.text.trim();
     final nationalId = _nationalIdCtrl.text.trim();
     if (fullName.isEmpty) {
-      setState(() => _formError = 'Please enter your full legal name.');
+      widget.controller._setFormError('Please enter your full legal name.');
       return;
     }
     if (nationalId.isEmpty) {
-      setState(() => _formError = 'Please enter your National Insurance number.');
+      widget.controller._setFormError('Please enter your National Insurance number.');
       return;
     }
-    setState(() => _formError = null);
+    widget.controller._setFormError(null);
 
     final parts = fullName.split(RegExp(r'\s+'));
     final firstName = parts.first;
@@ -142,7 +247,6 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = ref.watch(authNotifierProvider);
     final token = ref.watch(authTokenProvider);
 
     if (_loading) {
@@ -248,19 +352,8 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
             ],
           ),
         ),
-        if (_formError != null) ...[
-          const SizedBox(height: 12),
-          Text(_formError!, style: tw(FontWeight.w600, 13, Colors.red)),
-        ] else if (auth.error != null) ...[
-          const SizedBox(height: 12),
-          Text(auth.error!, style: tw(FontWeight.w600, 13, Colors.red)),
-        ],
-        const SizedBox(height: 20),
-        McButton(
-          auth.isLoading ? 'Saving…' : widget.submitLabel,
-          icon: auth.isLoading ? null : 'chevR',
-          onTap: auth.isLoading ? null : _submit,
-        ),
+        // No button, no error text: both live in the host's pinned
+        // DriverProfileSaveBar (see DriverProfileFormController).
       ],
     );
   }

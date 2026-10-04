@@ -86,12 +86,14 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
     return Scaffold(
       backgroundColor: Brand.bg,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        // "Save vehicle" is pinned in an McActionBar, which handles the bottom
+        // inset itself (so no SafeArea there) and rides above the keyboard.
+        bottom: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
+              child: Row(
                 children: [
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
@@ -103,53 +105,56 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
                   const McMenuButton(),
                 ],
               ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _label('Make', required: true),
-                      McField(icon: 'car', controller: _makeCtrl, editable: true),
-                      const SizedBox(height: 12),
-                      _label('Model', required: true),
-                      McField(icon: 'car', controller: _modelCtrl, editable: true),
-                      const SizedBox(height: 12),
-                      _label('Year', required: true),
-                      McField(
-                        icon: 'cal',
-                        controller: _yearCtrl,
-                        editable: true,
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 12),
-                      _label('Colour', required: true),
-                      McField(icon: 'car', controller: _colourCtrl, editable: true),
-                      const SizedBox(height: 12),
-                      _label('Registration number', required: true),
-                      McField(icon: 'doc', controller: _regCtrl, editable: true),
-                      const SizedBox(height: 12),
-                      _label('PHV vehicle licence plate (optional)'),
-                      McField(icon: 'doc', controller: _phvPlateCtrl, editable: true),
-                      const SizedBox(height: 12),
-                      _label('PHV licensing authority (optional)'),
-                      McField(icon: 'doc', controller: _phvAuthorityCtrl, editable: true),
-                      if (_error != null) ...[
-                        const SizedBox(height: 12),
-                        Text(_error!, style: tw(FontWeight.w600, 13, Colors.red)),
-                      ],
-                      const SizedBox(height: 20),
-                      McButton(
-                        _saving ? 'Saving…' : 'Save vehicle',
-                        icon: _saving ? null : 'chevR',
-                        onTap: _saving ? null : _save,
-                      ),
-                    ],
-                  ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _label('Make', required: true),
+                    McField(icon: 'car', controller: _makeCtrl, editable: true),
+                    const SizedBox(height: 12),
+                    _label('Model', required: true),
+                    McField(icon: 'car', controller: _modelCtrl, editable: true),
+                    const SizedBox(height: 12),
+                    _label('Year', required: true),
+                    McField(
+                      icon: 'cal',
+                      controller: _yearCtrl,
+                      editable: true,
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    _label('Colour', required: true),
+                    McField(icon: 'car', controller: _colourCtrl, editable: true),
+                    const SizedBox(height: 12),
+                    _label('Registration number', required: true),
+                    McField(icon: 'doc', controller: _regCtrl, editable: true),
+                    const SizedBox(height: 12),
+                    _label('PHV vehicle licence plate (optional)'),
+                    McField(icon: 'doc', controller: _phvPlateCtrl, editable: true),
+                    const SizedBox(height: 12),
+                    _label('PHV licensing authority (optional)'),
+                    McField(icon: 'doc', controller: _phvAuthorityCtrl, editable: true),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+            McActionBar(
+              // The error sits with the button, not at the end of the scroll.
+              notice: _error == null
+                  ? null
+                  : Text(_error!, style: tw(FontWeight.w600, 13, Colors.red)),
+              children: [
+                McButton(
+                  _saving ? 'Saving…' : 'Save vehicle',
+                  icon: _saving ? null : 'chevR',
+                  onTap: _saving ? null : _save,
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
