@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'src/app.dart';
+import 'src/core/network/api_client.dart';
 import 'src/core/network/error_reporter.dart';
 import 'src/core/notifications/push_service.dart';
 import 'src/core/storage/prefs.dart';
+import 'src/features/auth/providers/auth_notifier.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,7 +53,11 @@ Future<void> main() async {
 
   runApp(
     ProviderScope(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        // Lets core's refresher save rotated tokens before using them.
+        sessionPersistProvider.overrideWith(persistRenewedSession),
+      ],
       child: const MapcarsDriverApp(),
     ),
   );

@@ -42,7 +42,12 @@ class AuthState {
   /// Returned by the API in dev mode — displayed on-screen so you can type it.
   final String? devOtpCode;
 
-  bool get isAuthenticated => token != null && !isExpired;
+  /// Signed in: a token that is still valid, or one that can be renewed. An
+  /// expired access token with a refresh token is still a session, because
+  /// the first request that reaches the API renews it. Treating it as signed
+  /// out sent drivers who opened the app with no signal to the sign-in screen.
+  bool get isAuthenticated =>
+      token != null && (!isExpired || (refreshToken?.isNotEmpty ?? false));
 
   bool get isExpired =>
       expiresAt != null && DateTime.now().isAfter(expiresAt!);
