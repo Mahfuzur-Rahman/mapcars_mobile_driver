@@ -53,6 +53,7 @@ dependencies:
   # App ID + the applesignin entitlement (ios/Runner/*.entitlements).
   sign_in_with_apple: ^8.2.0
   crypto: ^3.0.7                # SHA-256 of the Apple sign-in nonce
+  smart_auth: ^3.2.0           # Android SMS User Consent: one-tap fill of the sign-in code
 
 dev_dependencies:
   flutter_test:

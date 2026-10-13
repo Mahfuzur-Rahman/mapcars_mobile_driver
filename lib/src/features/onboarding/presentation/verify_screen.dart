@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/sms/sms_code_listener.dart';
 import '../../../core/utils/uk_phone.dart';
 import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
@@ -35,6 +36,22 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
   /// Bumped to rebuild [OtpInput] empty: after a wrong code, and after a resend.
   int _attempt = 0;
 
+  final _sms = SmsCodeListener();
+
+  /// A code read from the SMS, shown in the boxes before it is verified.
+  String? _prefill;
+
+  Future<void> _listenForSms() async {
+    final code = await _sms.next();
+    if (code == null || !mounted) return;
+    setState(() {
+      _attempt++;
+      _prefill = code;
+      _code = code;
+    });
+    await _verifyOtp(code);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -42,7 +59,10 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
     // Arriving from sign-up with a code already sent: show the number it went
     // to, so "Resend code" resends to it instead of failing on an empty field.
     final pending = ref.read(authNotifierProvider).pendingPhone;
-    if (pending != null) _phoneCtrl.text = nationalPart(pending);
+    if (pending != null) {
+      _phoneCtrl.text = nationalPart(pending);
+      _listenForSms();
+    }
   }
 
   @override
@@ -50,6 +70,7 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _sms.cancel();
     super.dispose();
   }
 
@@ -60,7 +81,11 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
       return;
     }
     setState(() => _localError = null);
-    await ref.read(authNotifierProvider.notifier).sendPhoneOtp(phone);
+    final ok = await ref.read(authNotifierProvider.notifier).sendPhoneOtp(phone);
+    if (ok && mounted) {
+      _sms.cancel();
+      _listenForSms();
+    }
   }
 
   Future<void> _verifyOtp(String code) async {
@@ -70,6 +95,7 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
     if (!ok) {
       setState(() {
         _attempt++;
+        _prefill = null;
         _code = '';
       });
       return;
@@ -85,6 +111,7 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
     if (!mounted) return;
     setState(() {
       _attempt++;
+      _prefill = null;
       _code = '';
     });
   }
@@ -232,6 +259,7 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                           length: 6,
                           boxHeight: 56,
                           autofocus: true,
+                          initialCode: _prefill,
                           onChanged: (v) => setState(() => _code = v),
                           onCompleted: _verifyOtp,
                         ),
