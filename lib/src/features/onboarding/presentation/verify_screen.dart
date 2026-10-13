@@ -7,6 +7,7 @@ import '../../../core/utils/uk_phone.dart';
 import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
 import '../../auth/services/apple_sign_in_service.dart';
+import 'widgets/resend_code_button.dart';
 
 enum AuthTab { phone, email }
 
@@ -27,6 +28,12 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
   String? _localError;
+
+  /// The code typed so far, for the explicit Verify button.
+  String _code = '';
+
+  /// Bumped to rebuild [OtpInput] empty: after a wrong code, and after a resend.
+  int _attempt = 0;
 
   @override
   void initState() {
@@ -59,9 +66,27 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
   Future<void> _verifyOtp(String code) async {
     final ok =
         await ref.read(authNotifierProvider.notifier).verifyPhoneOtp(code);
-    if (!ok || !mounted) return;
+    if (!mounted) return;
+    if (!ok) {
+      setState(() {
+        _attempt++;
+        _code = '';
+      });
+      return;
+    }
+    // Usually the router has already moved on (its redirect picks /home or
+    // /registration). This covers the case where it hasn't.
     final profileComplete = ref.read(authNotifierProvider).isProfileComplete;
     context.go(profileComplete ? '/home' : '/registration');
+  }
+
+  Future<void> _resend() async {
+    await _sendCode();
+    if (!mounted) return;
+    setState(() {
+      _attempt++;
+      _code = '';
+    });
   }
 
   Future<void> _continueWithGoogle() async {
@@ -202,7 +227,14 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                           ],
                         ),
                         const SizedBox(height: 18),
-                        OtpInput(length: 6, boxHeight: 56, onCompleted: _verifyOtp),
+                        OtpInput(
+                          key: ValueKey(_attempt),
+                          length: 6,
+                          boxHeight: 56,
+                          autofocus: true,
+                          onChanged: (v) => setState(() => _code = v),
+                          onCompleted: _verifyOtp,
+                        ),
                         const SizedBox(height: 16),
                         if (AppConfig.showDevOtp && auth.devOtpCode != null) ...[
                           Container(
@@ -228,10 +260,10 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                           ),
                           const SizedBox(height: 12),
                         ],
-                        GestureDetector(
-                          onTap: auth.isLoading ? null : _sendCode,
-                          child: Text('Resend code',
-                              style: tw(FontWeight.w700, 13.5, Brand.sub)),
+                        ResendCodeButton(
+                          availableAt: auth.resendAvailableAt,
+                          busy: auth.isLoading,
+                          onResend: _resend,
                         ),
                       ],
                     ] else ...[
@@ -308,12 +340,18 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                   auth.isLoading
                       ? 'Please wait…'
                       : (isPhone
-                          ? (codeSent ? 'Resend code' : 'Send code')
+                          ? (codeSent ? 'Verify' : 'Send code')
                           : 'Sign in'),
                   icon: auth.isLoading ? null : 'check',
+                  // Once a code is sent the primary action verifies it: a
+                  // "Resend code" button here used to bypass the cooldown.
                   onTap: auth.isLoading
                       ? null
-                      : (isPhone ? _sendCode : _submitEmailLogin),
+                      : (isPhone
+                          ? (codeSent
+                              ? (_code.length == 6 ? () => _verifyOtp(_code) : null)
+                              : _sendCode)
+                          : _submitEmailLogin),
                 ),
               ],
             ),

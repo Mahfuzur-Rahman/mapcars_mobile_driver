@@ -16,6 +16,7 @@ class AuthState {
     this.error,
     this.pendingPhone,
     this.devOtpCode,
+    this.resendAvailableAt,
   });
 
   final bool isLoading;
@@ -41,6 +42,10 @@ class AuthState {
 
   /// Returned by the API in dev mode — displayed on-screen so you can type it.
   final String? devOtpCode;
+
+  /// When "Resend code" becomes available, from the server's resendAfterSeconds
+  /// (or retryAfterSeconds on a 429). Null when nothing has been sent yet.
+  final DateTime? resendAvailableAt;
 
   /// Signed in: a token that is still valid, or one that can be renewed. An
   /// expired access token with a refresh token is still a session, because
@@ -100,6 +105,7 @@ class AuthState {
     String? error,
     String? pendingPhone,
     String? devOtpCode,
+    DateTime? resendAvailableAt,
     bool clearError = false,
     bool clearDevOtp = false,
   }) =>
@@ -118,5 +124,6 @@ class AuthState {
         error: clearError ? null : (error ?? this.error),
         pendingPhone: pendingPhone ?? this.pendingPhone,
         devOtpCode: clearDevOtp ? null : (devOtpCode ?? this.devOtpCode),
+        resendAvailableAt: resendAvailableAt ?? this.resendAvailableAt,
       );
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/network/friendly_error.dart';
 import '../models/auth_state.dart';
 import '../services/apple_sign_in_service.dart';
@@ -26,10 +27,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
         pendingPhone: phone,
         devOtpCode: result.devCode,
+        resendAvailableAt: DateTime.now()
+            .add(Duration(seconds: result.resendAfterSeconds ?? 60)),
       );
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: friendlyError(e));
+      final wait = e is ApiException ? e.retryAfterSeconds : null;
+      state = state.copyWith(
+        isLoading: false,
+        error: friendlyError(e),
+        resendAvailableAt:
+            wait == null ? null : DateTime.now().add(Duration(seconds: wait)),
+      );
       return false;
     }
   }
