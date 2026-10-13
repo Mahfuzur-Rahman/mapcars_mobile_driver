@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/utils/uk_phone.dart';
 import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
 import '../../auth/services/apple_sign_in_service.dart';
@@ -31,6 +32,10 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
   void initState() {
     super.initState();
     _activeTab = widget.initialTab;
+    // Arriving from sign-up with a code already sent: show the number it went
+    // to, so "Resend code" resends to it instead of failing on an empty field.
+    final pending = ref.read(authNotifierProvider).pendingPhone;
+    if (pending != null) _phoneCtrl.text = nationalPart(pending);
   }
 
   @override
@@ -42,14 +47,13 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
   }
 
   Future<void> _sendCode() async {
-    final digits =
-        _phoneCtrl.text.trim().replaceAll(' ', '').replaceAll('-', '');
-    if (digits.isEmpty) {
-      setState(() => _localError = 'Please enter a valid phone number.');
+    final phone = ukMobileE164(_phoneCtrl.text);
+    if (phone == null) {
+      setState(() => _localError = 'Enter a UK mobile number, like 07400 123456.');
       return;
     }
     setState(() => _localError = null);
-    await ref.read(authNotifierProvider.notifier).sendPhoneOtp('+44$digits');
+    await ref.read(authNotifierProvider.notifier).sendPhoneOtp(phone);
   }
 
   Future<void> _verifyOtp(String code) async {
