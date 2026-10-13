@@ -226,6 +226,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
         fullName: profile.fullName,
         email: profile.email,
+        isEmailVerified: profile.isEmailVerified,
         isProfileComplete: profile.isProfileComplete,
       );
       return true;
@@ -233,6 +234,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(isLoading: false, error: friendlyError(e));
       return false;
     }
+  }
+
+  /// Folds a profile the API just returned from `POST /me/email/verify` into
+  /// the session, so the verified email survives an app restart. The verify
+  /// sheet calls the service itself (its wrong-code error belongs inline in the
+  /// sheet, not in [AuthState.error], which the profile save bar displays).
+  Future<void> adoptVerifiedProfile(DriverProfile profile) async {
+    if (state.token == null) return; // signed out mid-flight
+    state = state.copyWith(
+      email: profile.email,
+      isEmailVerified: profile.isEmailVerified,
+    );
+    await _persistSession();
   }
 
   Future<bool> uploadProfilePicture(File file) async {

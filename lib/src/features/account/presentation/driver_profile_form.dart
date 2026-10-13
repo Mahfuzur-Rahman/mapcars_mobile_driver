@@ -9,6 +9,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
 import '../../auth/services/driver_auth_service.dart';
+import 'verify_email_sheet.dart';
 
 /// Handle between a [DriverProfileForm] and the screen that hosts it.
 ///
@@ -119,7 +120,16 @@ class DriverProfileForm extends ConsumerStatefulWidget {
     super.key,
     required this.controller,
     required this.onSubmitted,
+    this.showEmail = false,
   });
+
+  /// Shows the email field and its verification status (Verified badge, or
+  /// "Verify email", which sends a code and opens [showVerifyEmailSheet]).
+  /// Trip summaries are only emailed to a verified address.
+  ///
+  /// Edit-profile only: the onboarding Registration step leaves it off, so the
+  /// signup funnel is not interrupted by a verification detour.
+  final bool showEmail;
 
   /// Lets the hosting screen's pinned [DriverProfileSaveBar] submit this form.
   /// The form has no button of its own.
@@ -138,10 +148,19 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
   final _passportCtrl = TextEditingController();
   final _emergencyNameCtrl = TextEditingController();
   final _emergencyPhoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   DateTime? _dob;
   bool _hasPicture = false;
   bool _marketingConsent = false;
   bool _loading = true;
+
+  /// The email as last saved on the server, and whether that one is verified.
+  /// Verification is offered for this value only - never for unsaved edits in
+  /// [_emailCtrl], since the code goes to the address on the profile.
+  String? _savedEmail;
+  bool _emailVerified = false;
+  bool _sendingCode = false;
+  String? _emailError;
 
   @override
   void initState() {
@@ -166,6 +185,9 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
       _dob = profile.dateOfBirth;
       _hasPicture = profile.hasProfilePicture;
       _marketingConsent = profile.marketingConsent;
+      _emailCtrl.text = profile.email ?? '';
+      _savedEmail = profile.email;
+      _emailVerified = profile.isEmailVerified;
     }
     setState(() => _loading = false);
     widget.controller._setReady();
@@ -181,6 +203,7 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
     _passportCtrl.dispose();
     _emergencyNameCtrl.dispose();
     _emergencyPhoneCtrl.dispose();
+    _emailCtrl.dispose();
     super.dispose();
   }
 
@@ -221,6 +244,13 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
       widget.controller._setFormError('Please enter your National Insurance number.');
       return;
     }
+    final email = _emailCtrl.text.trim();
+    if (widget.showEmail &&
+        email.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      widget.controller._setFormError('Please enter a valid email address.');
+      return;
+    }
     widget.controller._setFormError(null);
 
     final parts = fullName.split(RegExp(r'\s+'));
@@ -230,6 +260,8 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
     final ok = await ref.read(authNotifierProvider.notifier).updateProfile(
           firstName: firstName,
           lastName: lastName,
+          // Off the form (onboarding) -> null, so the PATCH leaves email alone.
+          email: widget.showEmail ? email : null,
           dateOfBirth: _dob,
           address: _addressCtrl.text.trim(),
           nationalIdNumber: nationalId,
@@ -239,7 +271,53 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
           emergencyContactPhone: _emergencyPhoneCtrl.text.trim(),
           marketingConsent: _marketingConsent,
         );
-    if (ok) widget.onSubmitted();
+    if (!ok) return;
+    if (widget.showEmail && email.isNotEmpty && mounted) {
+      // Mirrors the API: saving a different address resets verification.
+      setState(() {
+        if (!_sameEmail(email, _savedEmail)) _emailVerified = false;
+        _savedEmail = email.toLowerCase();
+      });
+    }
+    widget.onSubmitted();
+  }
+
+  static bool _sameEmail(String? a, String? b) =>
+      (a ?? '').trim().toLowerCase() == (b ?? '').trim().toLowerCase();
+
+  /// "Verify email": send the code, then collect it in the sheet.
+  Future<void> _verifyEmail() async {
+    if (_sendingCode) return;
+    setState(() {
+      _sendingCode = true;
+      _emailError = null;
+    });
+    final OtpSentResult sent;
+    try {
+      sent = await ref.read(driverAuthServiceProvider).sendProfileEmailCode();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _sendingCode = false;
+          _emailError = profileEmailError(e);
+        });
+      }
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _sendingCode = false);
+
+    final profile = await showVerifyEmailSheet(context, sent: sent);
+    if (profile == null || !mounted) return;
+    setState(() {
+      _emailVerified = profile.isEmailVerified;
+      _savedEmail = profile.email;
+    });
+    await ref.read(authNotifierProvider.notifier).adoptVerifiedProfile(profile);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Email verified')));
   }
 
   String _formatDob(DateTime d) =>
@@ -302,6 +380,11 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
         const SizedBox(height: 16),
         _label('Full legal name', required: true),
         McField(icon: 'user', controller: _nameCtrl, editable: true),
+        if (widget.showEmail) ...[
+          const SizedBox(height: 12),
+          _label('Email'),
+          ..._emailSection(),
+        ],
         const SizedBox(height: 12),
         _label('Date of birth'),
         McField(
@@ -358,6 +441,66 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
     );
   }
 
+  /// The email field plus whatever its verification state calls for.
+  List<Widget> _emailSection() {
+    final typed = _emailCtrl.text.trim();
+    final saved = (_savedEmail ?? '').trim();
+    final dirty = !_sameEmail(typed, saved);
+    final showVerified = !dirty && saved.isNotEmpty && _emailVerified;
+    final showUnverified = !dirty && saved.isNotEmpty && !_emailVerified;
+
+    final String? hint;
+    if (dirty && typed.isNotEmpty) {
+      hint = 'Save your changes, then verify this email to get trip summaries by email.';
+    } else if (dirty) {
+      // The API ignores a blank email, so clearing the field removes nothing.
+      hint = 'Leave this blank and your current email stays on your profile.';
+    } else if (saved.isEmpty) {
+      hint = 'Add an email to get trip summaries by email.';
+    } else if (showUnverified) {
+      hint = 'Verify your email to get trip summaries by email.';
+    } else {
+      hint = null;
+    }
+
+    return [
+      McField(
+        icon: 'mail',
+        controller: _emailCtrl,
+        editable: true,
+        placeholder: 'you@example.com',
+        keyboardType: TextInputType.emailAddress,
+        onChanged: (_) => setState(() => _emailError = null),
+        suffix: showVerified
+            ? const _EmailStatusPill(verified: true)
+            : showUnverified
+                ? const _EmailStatusPill(verified: false)
+                : null,
+      ),
+      if (hint != null) ...[
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 2),
+          child: Text(hint, style: tw(FontWeight.w600, 12.5, Brand.sub)),
+        ),
+      ],
+      if (showUnverified) ...[
+        const SizedBox(height: 10),
+        McGhostButton(
+          _sendingCode ? 'Sending code…' : 'Verify email',
+          icon: _sendingCode ? null : 'mail',
+          full: false,
+          height: 44,
+          onTap: _sendingCode ? null : _verifyEmail,
+        ),
+      ],
+      if (_emailError != null) ...[
+        const SizedBox(height: 10),
+        McErrorBanner(_emailError!),
+      ],
+    ];
+  }
+
   Widget _label(String text, {bool required = false}) => Padding(
         padding: const EdgeInsets.only(left: 2, bottom: 6),
         child: RichText(
@@ -370,4 +513,34 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
           ),
         ),
       );
+}
+
+/// "Verified" / "Unverified" pill inside the email field - the same tinted
+/// pill as `StatementStatusPill` (green when done, amber when it needs action).
+class _EmailStatusPill extends StatelessWidget {
+  const _EmailStatusPill({required this.verified});
+  final bool verified;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = verified ? Brand.green : Brand.star;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.094),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (verified) ...[
+            Ico('check', size: 13, color: color),
+            const SizedBox(width: 3),
+          ],
+          Text(verified ? 'Verified' : 'Unverified',
+              style: tw(FontWeight.w800, 11, color)),
+        ],
+      ),
+    );
+  }
 }

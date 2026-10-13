@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -736,11 +737,25 @@ class _PictureSourceTile extends StatelessWidget {
 }
 
 /// Working N-box OTP / PIN input backed by a single hidden TextField.
+///
+/// Digits only, numeric keyboard, and the one-time-code autofill hint, so the
+/// OS can offer a code it just received. [onChanged] reports every edit (for a
+/// Confirm button that needs the partial value); [onCompleted] fires once the
+/// last box is filled.
 class OtpInput extends StatefulWidget {
-  const OtpInput({super.key, this.length = 6, this.boxHeight = 56, this.onCompleted});
+  const OtpInput({
+    super.key,
+    this.length = 6,
+    this.boxHeight = 56,
+    this.onCompleted,
+    this.onChanged,
+    this.autofocus = false,
+  });
   final int length;
   final double boxHeight;
   final ValueChanged<String>? onCompleted;
+  final ValueChanged<String>? onChanged;
+  final bool autofocus;
 
   @override
   State<OtpInput> createState() => _OtpInputState();
@@ -779,10 +794,14 @@ class _OtpInputState extends State<OtpInput> {
               child: TextField(
                 controller: _c,
                 focusNode: _f,
+                autofocus: widget.autofocus,
                 keyboardType: TextInputType.number,
+                autofillHints: const [AutofillHints.oneTimeCode],
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 maxLength: widget.length,
                 onChanged: (v) {
                   setState(() {});
+                  widget.onChanged?.call(v);
                   if (v.length == widget.length) widget.onCompleted?.call(v);
                 },
                 decoration: const InputDecoration(counterText: '', border: InputBorder.none),

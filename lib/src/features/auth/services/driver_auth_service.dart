@@ -15,6 +15,7 @@ class DriverProfile {
     this.lastName,
     this.fullName,
     this.email,
+    this.isEmailVerified = false,
     this.phone,
     this.dateOfBirth,
     this.address,
@@ -43,6 +44,11 @@ class DriverProfile {
   final String? lastName;
   final String? fullName;
   final String? email;
+
+  /// Whether [email] has been proven with a code. Trip summaries are only
+  /// emailed to a verified address; a phone sign-up's added email starts
+  /// unverified, and PATCHing a different email resets it to false.
+  final bool isEmailVerified;
   final String? phone;
   final DateTime? dateOfBirth;
   final String? address;
@@ -84,6 +90,8 @@ class DriverProfile {
         lastName: j['lastName'] as String?,
         fullName: j['fullName'] as String?,
         email: j['email'] as String?,
+        // Absent on an API older than profile-email verification.
+        isEmailVerified: j['isEmailVerified'] as bool? ?? false,
         phone: j['phone'] as String?,
         dateOfBirth: j['dateOfBirth'] == null
             ? null
@@ -340,6 +348,31 @@ class DriverAuthService {
               'emergencyContactPhone': emergencyContactPhone,
             if (marketingConsent != null) 'marketingConsent': marketingConsent,
           },
+        );
+        return DriverProfile.fromJson(res.data!);
+      });
+
+  /// `POST /me/email/send-code` — emails a 6-digit code to the (unverified)
+  /// email already on the profile; the request names no address. A 400 means
+  /// there is no email yet or it is already verified; 429 means rate-limited.
+  Future<OtpSentResult> sendProfileEmailCode() => apiCall(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '$_base/me/email/send-code',
+        );
+        final d = res.data!;
+        return OtpSentResult(
+          message: d['message'] as String? ?? 'Verification code sent.',
+          devCode: d['devCode'] as String?,
+        );
+      });
+
+  /// `POST /me/email/verify` — confirms the profile email with the emailed
+  /// code and returns the updated profile. A wrong/expired code is a 400 (not
+  /// 401), so it never trips the session refresher.
+  Future<DriverProfile> verifyProfileEmail(String code) => apiCall(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '$_base/me/email/verify',
+          data: {'code': code},
         );
         return DriverProfile.fromJson(res.data!);
       });

@@ -49,6 +49,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
                 child: DriverProfileForm(
                   controller: _form,
+                  // Signed-in only: email + its verification (trip summaries
+                  // are only emailed to a verified address).
+                  showEmail: true,
                   onSubmitted: () => Navigator.of(context).pop(),
                 ),
               ),
