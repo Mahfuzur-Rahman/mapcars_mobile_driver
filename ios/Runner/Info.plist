@@ -4,6 +4,27 @@
 	<dict>
 		<key>GMSApiKey</key>
 		<string>$(MAPS_API_KEY)</string>
+		<!-- Google sign-in. The iOS plugin drops the Dart serverClientId unless an iOS
+		     client ID is passed with it, so both IDs live here. GIDClientID is this
+		     app's iOS OAuth client. GIDServerClientID is the Web client the API checks
+		     the token audience against. Both must be in Cloud project 592679919588.
+		     Without GIDClientID and the reversed URL scheme, GoogleSignIn raises a
+		     native exception and the app crashes. -->
+		<key>GIDClientID</key>
+		<string>592679919588-6d2q32gi22d7bsuj9sgmoi9lj3j6def6.apps.googleusercontent.com</string>
+		<key>GIDServerClientID</key>
+		<string>592679919588-l4v73i1asjra3vltaj2t0s1gs5abm995.apps.googleusercontent.com</string>
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>com.googleusercontent.apps.592679919588-6d2q32gi22d7bsuj9sgmoi9lj3j6def6</string>
+				</array>
+			</dict>
+		</array>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>Mapcars Driver uses your location to show your position on the map and navigate trips.</string>
 		<!-- While online, the driver's position keeps being sent with the app in
