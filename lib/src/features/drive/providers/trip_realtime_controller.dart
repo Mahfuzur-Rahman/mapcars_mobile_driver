@@ -113,7 +113,7 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
     await _rt.connect(token, {
       'tripUpdated': _onTripUpdated,
       'messageReceived': _onMessageReceived,
-    });
+    }, currentToken: () => _ref.read(authTokenProvider));
     // joinTrip, not invoke: group membership is per connection id, so a
     // reconnect silently unsubscribes unless the service replays it.
     await _rt.joinTrip(tripId);
@@ -165,7 +165,7 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
       await _rt.connect(token, {
         'tripUpdated': _onTripUpdated,
         'messageReceived': _onMessageReceived,
-      });
+      }, currentToken: () => _ref.read(authTokenProvider));
       await _rt.joinTrip(tripId);
     }
   }

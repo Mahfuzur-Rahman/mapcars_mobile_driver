@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/sms/sms_code_listener.dart';
+import '../../../core/utils/uk_phone.dart';
 import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
 import '../../auth/services/apple_sign_in_service.dart';
+import 'widgets/resend_code_button.dart';
 
 enum AuthTab { phone, email }
 
@@ -27,10 +30,39 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
   bool _obscurePassword = true;
   String? _localError;
 
+  /// The code typed so far, for the explicit Verify button.
+  String _code = '';
+
+  /// Bumped to rebuild [OtpInput] empty: after a wrong code, and after a resend.
+  int _attempt = 0;
+
+  final _sms = SmsCodeListener();
+
+  /// A code read from the SMS, shown in the boxes before it is verified.
+  String? _prefill;
+
+  Future<void> _listenForSms() async {
+    final code = await _sms.next();
+    if (code == null || !mounted) return;
+    setState(() {
+      _attempt++;
+      _prefill = code;
+      _code = code;
+    });
+    await _verifyOtp(code);
+  }
+
   @override
   void initState() {
     super.initState();
     _activeTab = widget.initialTab;
+    // Arriving from sign-up with a code already sent: show the number it went
+    // to, so "Resend code" resends to it instead of failing on an empty field.
+    final pending = ref.read(authNotifierProvider).pendingPhone;
+    if (pending != null) {
+      _phoneCtrl.text = nationalPart(pending);
+      _listenForSms();
+    }
   }
 
   @override
@@ -38,26 +70,50 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _sms.cancel();
     super.dispose();
   }
 
   Future<void> _sendCode() async {
-    final digits =
-        _phoneCtrl.text.trim().replaceAll(' ', '').replaceAll('-', '');
-    if (digits.isEmpty) {
-      setState(() => _localError = 'Please enter a valid phone number.');
+    final phone = ukMobileE164(_phoneCtrl.text);
+    if (phone == null) {
+      setState(() => _localError = 'Enter a UK mobile number, like 07400 123456.');
       return;
     }
     setState(() => _localError = null);
-    await ref.read(authNotifierProvider.notifier).sendPhoneOtp('+44$digits');
+    final ok = await ref.read(authNotifierProvider.notifier).sendPhoneOtp(phone);
+    if (ok && mounted) {
+      _sms.cancel();
+      _listenForSms();
+    }
   }
 
   Future<void> _verifyOtp(String code) async {
     final ok =
         await ref.read(authNotifierProvider.notifier).verifyPhoneOtp(code);
-    if (!ok || !mounted) return;
+    if (!mounted) return;
+    if (!ok) {
+      setState(() {
+        _attempt++;
+        _prefill = null;
+        _code = '';
+      });
+      return;
+    }
+    // Usually the router has already moved on (its redirect picks /home or
+    // /registration). This covers the case where it hasn't.
     final profileComplete = ref.read(authNotifierProvider).isProfileComplete;
     context.go(profileComplete ? '/home' : '/registration');
+  }
+
+  Future<void> _resend() async {
+    await _sendCode();
+    if (!mounted) return;
+    setState(() {
+      _attempt++;
+      _prefill = null;
+      _code = '';
+    });
   }
 
   Future<void> _continueWithGoogle() async {
@@ -198,7 +254,15 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                           ],
                         ),
                         const SizedBox(height: 18),
-                        OtpInput(length: 6, boxHeight: 56, onCompleted: _verifyOtp),
+                        OtpInput(
+                          key: ValueKey(_attempt),
+                          length: 6,
+                          boxHeight: 56,
+                          autofocus: true,
+                          initialCode: _prefill,
+                          onChanged: (v) => setState(() => _code = v),
+                          onCompleted: _verifyOtp,
+                        ),
                         const SizedBox(height: 16),
                         if (AppConfig.showDevOtp && auth.devOtpCode != null) ...[
                           Container(
@@ -224,10 +288,10 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                           ),
                           const SizedBox(height: 12),
                         ],
-                        GestureDetector(
-                          onTap: auth.isLoading ? null : _sendCode,
-                          child: Text('Resend code',
-                              style: tw(FontWeight.w700, 13.5, Brand.sub)),
+                        ResendCodeButton(
+                          availableAt: auth.resendAvailableAt,
+                          busy: auth.isLoading,
+                          onResend: _resend,
                         ),
                       ],
                     ] else ...[
@@ -304,12 +368,18 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                   auth.isLoading
                       ? 'Please wait…'
                       : (isPhone
-                          ? (codeSent ? 'Resend code' : 'Send code')
+                          ? (codeSent ? 'Verify' : 'Send code')
                           : 'Sign in'),
                   icon: auth.isLoading ? null : 'check',
+                  // Once a code is sent the primary action verifies it: a
+                  // "Resend code" button here used to bypass the cooldown.
                   onTap: auth.isLoading
                       ? null
-                      : (isPhone ? _sendCode : _submitEmailLogin),
+                      : (isPhone
+                          ? (codeSent
+                              ? (_code.length == 6 ? () => _verifyOtp(_code) : null)
+                              : _sendCode)
+                          : _submitEmailLogin),
                 ),
               ],
             ),

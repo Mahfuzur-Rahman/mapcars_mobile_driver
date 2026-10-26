@@ -22,11 +22,6 @@ final refreshTokenProvider = StateProvider<String?>((ref) => null);
 /// down — keeping core/ independent of features/ (core never imports a feature).
 final unauthorizedProvider = StateProvider<int>((ref) => 0);
 
-/// Set whenever a silent refresh succeeds. The auth feature listens, folds the
-/// new credentials into its state and re-persists them. Same one-way signalling
-/// as [unauthorizedProvider]: core announces, the feature reacts.
-final sessionRenewedProvider = StateProvider<RenewedSession?>((ref) => null);
-
 /// Credentials handed back by `POST /api/v1/auth/refresh`.
 class RenewedSession {
   const RenewedSession({
@@ -38,12 +33,48 @@ class RenewedSession {
   final String token;
 
   /// The API rotates on every refresh, so this is a *different* token from the
-  /// one that was sent. Storing it is mandatory — presenting the old one again
-  /// reads as a stolen-token replay and kills every session for the account.
+  /// one that was sent. Storing it is mandatory. Presenting the old one again,
+  /// after the API's short grace window, reads as a stolen-token replay and
+  /// kills every session for the account.
   final String refreshToken;
 
   final int expiresInMinutes;
 }
+
+/// What became of an attempt to renew the session.
+enum RefreshOutcome {
+  /// New tokens are in the providers and on disk.
+  renewed,
+
+  /// The API answered 401 (the refresh token is expired, revoked or replayed),
+  /// or there was none to send. Signing in again is genuinely required.
+  rejected,
+
+  /// No usable answer: offline, timeout, 5xx, 429. The session may be
+  /// perfectly fine, so it is kept and the next request tries again.
+  failed,
+}
+
+/// Writes renewed credentials to durable storage. Core can't import the auth
+/// feature, so the app root (`main.dart`) installs the real one
+/// (`persistRenewedSession`). The refresher awaits it before reporting success:
+/// a rotated refresh token that lived only in memory would be replayed after an
+/// app kill.
+final sessionPersistProvider =
+    Provider<Future<void> Function(RenewedSession)>((ref) {
+  throw UnimplementedError(
+      'Override sessionPersistProvider at the app root (see persistRenewedSession).');
+});
+
+/// The bare Dio the refresher talks to. A bare instance on purpose: the app's
+/// own carries the interceptor below, so refreshing through it would recurse
+/// on failure. It's its own provider so tests can stub the network.
+final refreshDioProvider = Provider<Dio>((ref) => Dio(BaseOptions(
+      baseUrl: Env.apiBaseUrl,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 20),
+      headers: {'Content-Type': 'application/json; charset=utf-8'},
+    )));
 
 /// Exchanges the stored refresh token for a fresh access token.
 class SessionRefresher {
@@ -54,14 +85,12 @@ class SessionRefresher {
   /// The refresh currently in flight, if any.
   ///
   /// Coalescing matters more than it looks. Several requests can 401 at the same
-  /// instant (the home screen alone fires a few), and because the API *rotates*
+  /// instant (the home screen alone fires a few). Because the API *rotates*
   /// the refresh token on use, a second concurrent call would present a token
-  /// that was just retired — which the server reads as a replay and answers by
-  /// revoking every session the user has. Parallel callers therefore all await
-  /// this one future.
-  Future<bool>? _inFlight;
+  /// that was just retired. Parallel callers therefore all await this one future.
+  Future<RefreshOutcome>? _inFlight;
 
-  Future<bool> refresh() {
+  Future<RefreshOutcome> refresh() {
     final existing = _inFlight;
     if (existing != null) return existing;
 
@@ -73,45 +102,50 @@ class SessionRefresher {
     return future;
   }
 
-  Future<bool> _run() async {
+  Future<RefreshOutcome> _run() async {
     final refreshToken = _ref.read(refreshTokenProvider);
-    if (refreshToken == null || refreshToken.isEmpty) return false;
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return RefreshOutcome.rejected;
+    }
+    // Read before the try: a missing override is a wiring bug and must fail
+    // loudly, not be mistaken for being offline.
+    final persist = _ref.read(sessionPersistProvider);
 
+    final RenewedSession renewed;
     try {
-      // A bare Dio on purpose: the app's own instance carries the interceptor
-      // below, so refreshing through it would recurse on failure.
-      final dio = Dio(BaseOptions(
-        baseUrl: Env.apiBaseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 20),
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-      ));
-
-      final res = await dio.post<Map<String, dynamic>>(
+      final res = await _ref.read(refreshDioProvider).post<Map<String, dynamic>>(
         '/api/v1/auth/refresh',
         data: {'refreshToken': refreshToken},
       );
-
       final data = res.data;
-      if (data == null || data['token'] is! String) return false;
-
-      final renewed = RenewedSession(
+      if (data == null || data['token'] is! String) return RefreshOutcome.failed;
+      renewed = RenewedSession(
         token: data['token'] as String,
         refreshToken: data['refreshToken'] as String? ?? refreshToken,
         expiresInMinutes: data['expiresInMinutes'] as int? ?? 60,
       );
-
-      _ref.read(authTokenProvider.notifier).state = renewed.token;
-      _ref.read(refreshTokenProvider.notifier).state = renewed.refreshToken;
-      _ref.read(sessionRenewedProvider.notifier).state = renewed;
-      return true;
-    } catch (e) {
-      // A 401 here means the refresh token is genuinely dead (expired, revoked,
-      // or replayed) — the user really does have to sign in again. Anything else
-      // is usually the network, and the caller will simply try again later.
+    } on DioException catch (e) {
       if (kDebugMode) debugPrint('[API] refresh failed: $e');
-      return false;
+      // Only the API saying no ends the session. Anything else is the network
+      // or a passing server fault, and the next request will try again.
+      return e.response?.statusCode == 401
+          ? RefreshOutcome.rejected
+          : RefreshOutcome.failed;
+    } catch (e) {
+      if (kDebugMode) debugPrint('[API] refresh failed: $e');
+      return RefreshOutcome.failed;
     }
+
+    _ref.read(authTokenProvider.notifier).state = renewed.token;
+    _ref.read(refreshTokenProvider.notifier).state = renewed.refreshToken;
+    // On disk before anyone relies on it. A storage failure is logged, not
+    // fatal: the tokens are live in memory, and the next save retries.
+    try {
+      await persist(renewed);
+    } catch (e) {
+      if (kDebugMode) debugPrint('[API] could not persist renewed session: $e');
+    }
+    return RefreshOutcome.renewed;
   }
 }
 
@@ -180,21 +214,29 @@ final dioProvider = Provider<Dio>((ref) {
         }
 
         // The access token has expired mid-use. Renew it silently and replay the
-        // request — the user should never see this happen.
-        if (e.requestOptions.extra[_retriedKey] != true &&
-            await ref.read(sessionRefresherProvider).refresh()) {
-          final retry = e.requestOptions
-            ..extra = {...e.requestOptions.extra, _retriedKey: true}
-            ..headers['Authorization'] = 'Bearer ${ref.read(authTokenProvider)}';
-          try {
-            return handler.resolve(await dio.fetch(retry));
-          } catch (retryError) {
-            if (retryError is DioException) return handler.next(retryError);
-            return handler.next(e);
+        // request. The user should never see this happen.
+        if (e.requestOptions.extra[_retriedKey] != true) {
+          final outcome = await ref.read(sessionRefresherProvider).refresh();
+          if (outcome == RefreshOutcome.renewed) {
+            final retry = e.requestOptions
+              ..extra = {...e.requestOptions.extra, _retriedKey: true}
+              ..headers['Authorization'] =
+                  'Bearer ${ref.read(authTokenProvider)}';
+            try {
+              return handler.resolve(await dio.fetch(retry));
+            } catch (retryError) {
+              if (retryError is DioException) return handler.next(retryError);
+              return handler.next(e);
+            }
           }
+          // Couldn't reach the API to renew. The session isn't over: keep the
+          // tokens and let this request fail like any other network error. The
+          // next request renews.
+          if (outcome == RefreshOutcome.failed) return handler.next(e);
         }
 
-        // No refresh token, or it was rejected: this really is a signed-out user.
+        // The refresh token was rejected, or this request 401'd again right
+        // after a renewal: this really is a signed-out user.
         ref.read(authTokenProvider.notifier).state = null;
         ref.read(refreshTokenProvider.notifier).state = null;
         ref.read(unauthorizedProvider.notifier).state++;

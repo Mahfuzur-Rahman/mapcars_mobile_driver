@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/uk_phone.dart';
 import '../../../core/widgets/mc.dart';
 import '../../auth/providers/auth_notifier.dart';
 import '../../auth/services/apple_sign_in_service.dart';
@@ -46,15 +47,16 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
   }
 
   Future<void> _submitPhone() async {
-    final digits =
-        _phoneCtrl.text.trim().replaceAll(' ', '').replaceAll('-', '');
-    if (digits.isEmpty) {
-      setState(() => _localError = 'Please enter a valid phone number.');
+    final phone = ukMobileE164(_phoneCtrl.text);
+    if (phone == null) {
+      setState(() => _localError = 'Enter a UK mobile number, like 07400 123456.');
       return;
     }
     setState(() => _localError = null);
-    await ref.read(authNotifierProvider.notifier).sendPhoneOtp('+44$digits');
-    if (mounted) context.go('/verify');
+    // Only move on if the code was actually sent. Going to /verify regardless
+    // left the driver on an empty form under an error banner.
+    final ok = await ref.read(authNotifierProvider.notifier).sendPhoneOtp(phone);
+    if (ok && mounted) context.go('/verify');
   }
 
   Future<void> _continueWithGoogle() async {

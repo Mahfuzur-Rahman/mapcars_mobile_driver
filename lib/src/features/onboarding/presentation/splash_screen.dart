@@ -14,6 +14,18 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  /// Set once restore() has finished. Until then a tap is ignored: tapping
+  /// through to /intro used to race the restore and put a signed-in driver on
+  /// the sign-in screen.
+  bool _restored = false;
+
+  /// Tap-to-skip: goes where the boot sequence would, once it knows.
+  void _skip() {
+    if (!_restored || !mounted) return;
+    final loggedIn = ref.read(authNotifierProvider).isAuthenticated;
+    context.go(loggedIn ? '/home' : '/intro');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -26,6 +38,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     // once it unmounts — but a held notification tap still has to be released.
     final taps = ref.read(pushTapProvider);
     await ref.read(authNotifierProvider.notifier).restore();
+    _restored = true;
     await Future<void>.delayed(const Duration(milliseconds: 1200));
     // A notification that launched the app is only acted on now, with the
     // session settled — acting any earlier raced the restore. If it took the
@@ -41,7 +54,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     return Scaffold(
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => context.go('/intro'),
+        onTap: _skip,
         child: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(

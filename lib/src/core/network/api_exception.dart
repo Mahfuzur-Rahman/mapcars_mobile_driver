@@ -3,11 +3,21 @@ import 'package:dio/dio.dart';
 import 'network_diagnosis.dart';
 
 class ApiException implements Exception {
-  ApiException({required this.message, this.statusCode, this.errors});
+  ApiException({
+    required this.message,
+    this.statusCode,
+    this.errors,
+    this.retryAfterSeconds,
+  });
 
   final int? statusCode;
   final String message;
   final Map<String, dynamic>? errors;
+
+  /// On a 429: how long to wait. It comes from the problem body
+  /// (`retryAfterSeconds`, set by the per-number send guard) or the
+  /// `Retry-After` header (the per-IP rate limiter).
+  final int? retryAfterSeconds;
 
   factory ApiException.fromDioError(DioException e) {
     final data = e.response?.data;
@@ -18,12 +28,16 @@ class ApiException implements Exception {
       msg = (data['title'] as String?) ?? msg;
     }
 
+    final bodyWait = data is Map<String, dynamic> ? data['retryAfterSeconds'] : null;
+    final headerWait = int.tryParse(e.response?.headers.value('retry-after') ?? '');
+
     return ApiException(
       message: msg,
       statusCode: e.response?.statusCode,
       errors: data is Map<String, dynamic>
           ? data['errors'] as Map<String, dynamic>?
           : null,
+      retryAfterSeconds: bodyWait is int ? bodyWait : headerWait,
     );
   }
 

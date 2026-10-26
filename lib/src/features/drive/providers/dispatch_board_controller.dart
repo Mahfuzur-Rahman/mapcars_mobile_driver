@@ -128,7 +128,7 @@ class DispatchBoardController extends StateNotifier<DispatchBoardState> {
       'tripAvailable': _onAvailable,
       'tripTaken': _onTaken,
       'tripExpired': _onExpired,
-    });
+    }, currentToken: () => _ref.read(authTokenProvider));
 
     await _refresh();
     _startWatchdog();

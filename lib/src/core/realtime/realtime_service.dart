@@ -50,6 +50,12 @@ class RealtimeService {
   bool _wanted = false;
 
   String? _token;
+
+  /// Reads the freshest access token at (re)connect time. The token passed to
+  /// [connect] is only good for its first hour. Without this, SignalR's
+  /// automatic reconnect and [_scheduleRetry] kept presenting it long after a
+  /// silent refresh had replaced it, so every reconnect after the hour failed.
+  String? Function()? _currentToken;
   Map<String, void Function(List<Object?>? args)> _handlers = const {};
 
   /// Trip groups this client belongs to, replayed after every reconnect.
@@ -69,10 +75,12 @@ class RealtimeService {
   /// previous failure.
   Future<void> connect(
     String token,
-    Map<String, void Function(List<Object?>? args)> handlers,
-  ) async {
+    Map<String, void Function(List<Object?>? args)> handlers, {
+    String? Function()? currentToken,
+  }) async {
     _wanted = true;
     _token = token;
+    _currentToken = currentToken;
     _handlers = handlers;
     if (isConnected || _starting) return;
     await _open();
@@ -132,7 +140,7 @@ class RealtimeService {
           .withUrl(
             '${Env.apiBaseUrl}/hubs/trip',
             options: HttpConnectionOptions(
-              accessTokenFactory: () async => token,
+              accessTokenFactory: () async => _currentToken?.call() ?? _token ?? token,
               // The package default is 2s, which a phone on mobile data loses
               // to routinely on negotiate alone — and a failed negotiate reads
               // as "realtime is unavailable" for the whole trip.

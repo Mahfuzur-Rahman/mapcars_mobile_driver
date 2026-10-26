@@ -570,7 +570,7 @@ void main() {
         'sign up (phone)': (
           screen: const EmailSignupScreen(),
           button: 'Continue',
-          message: 'Please enter a valid phone number.',
+          message: 'Enter a UK mobile number, like 07400 123456.',
         ),
         'verify (email)': (
           screen: const EmailLoginScreen(),
@@ -580,7 +580,7 @@ void main() {
         'verify (phone)': (
           screen: const VerifyScreen(),
           button: 'Send code',
-          message: 'Please enter a valid phone number.',
+          message: 'Enter a UK mobile number, like 07400 123456.',
         ),
       };
       for (final e in failedSubmits.entries) {

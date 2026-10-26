@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/network/friendly_error.dart';
 import '../models/auth_state.dart';
 import '../services/apple_sign_in_service.dart';
@@ -26,10 +27,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
         pendingPhone: phone,
         devOtpCode: result.devCode,
+        resendAvailableAt: DateTime.now()
+            .add(Duration(seconds: result.resendAfterSeconds ?? 60)),
       );
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: friendlyError(e));
+      final wait = e is ApiException ? e.retryAfterSeconds : null;
+      state = state.copyWith(
+        isLoading: false,
+        error: friendlyError(e),
+        resendAvailableAt:
+            wait == null ? null : DateTime.now().add(Duration(seconds: wait)),
+      );
       return false;
     }
   }
@@ -298,17 +307,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
     // The access token lapsed while the app was closed. That used to be the end
     // of the session - the driver was dropped at the login screen having done
     // nothing wrong. Now we renew it silently and they never notice.
-    final renewed = await _ref.read(sessionRefresherProvider).refresh();
-    if (renewed) return; // the sessionRenewed listener persists the new tokens
+    final outcome = await _ref.read(sessionRefresherProvider).refresh();
+    // Renewed: already on disk. Failed: no signal, or the API is having a
+    // moment. Either way the driver stays signed in on the stored session, and
+    // the first request that gets through renews it.
+    if (outcome != RefreshOutcome.rejected) return;
 
-    // The refresh token is dead too (revoked, or 90 days idle). This is the one
-    // case where signing in again is genuinely required.
+    // The API rejected the refresh token (revoked, or 90 days unused). This is
+    // the one case where signing in again is genuinely required.
     await signOut();
   }
 
   /// Folds silently-renewed credentials into the session and re-persists them.
-  /// Driven by [sessionRenewedProvider], which core bumps after a successful
-  /// refresh - core announces, this feature reacts, and core never imports it.
+  /// Called through core's [sessionPersistProvider] (wired in main.dart), which
+  /// the refresher awaits, so the rotated token is on disk before it is used.
   Future<void> adoptRenewedSession(RenewedSession renewed) async {
     if (state.token == null) return; // signed out mid-flight; nothing to adopt
     state = state.copyWith(
@@ -335,7 +347,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     _ref.read(authTokenProvider.notifier).state = null;
     _ref.read(refreshTokenProvider.notifier).state = null;
-    _ref.read(sessionRenewedProvider.notifier).state = null;
     await _ref.read(sessionRepositoryProvider).clear();
     // Otherwise the next Google tap silently reuses the same account.
     await _ref.read(googleSignInServiceProvider).signOut();
@@ -383,12 +394,11 @@ final authNotifierProvider =
     if (next > 0) notifier.signOut();
   });
 
-  // A silent refresh succeeded — fold the rotated credentials into the session
-  // and write them to storage, so the next app launch starts from the new pair
-  // rather than the retired one.
-  ref.listen<RenewedSession?>(sessionRenewedProvider, (prev, next) {
-    if (next != null) notifier.adoptRenewedSession(next);
-  });
-
   return notifier;
 });
+
+/// The real [sessionPersistProvider], installed at the app root (main.dart).
+/// Core announces renewed credentials, and this feature stores them.
+Future<void> Function(RenewedSession) persistRenewedSession(Ref ref) =>
+    (renewed) =>
+        ref.read(authNotifierProvider.notifier).adoptRenewedSession(renewed);

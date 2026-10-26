@@ -91,6 +91,15 @@ void main() {
         userId: 'd',
       );
       expect(stale.isAuthenticated, isFalse);
+
+      // Expired but renewable: still signed in. The first request renews it.
+      final renewable = AuthState(
+        token: 't',
+        refreshToken: 'r',
+        expiresAt: DateTime.now().subtract(const Duration(hours: 1)),
+        userId: 'd',
+      );
+      expect(renewable.isAuthenticated, isTrue);
     });
 
     test('toSession() / fromSession() preserve the persistable slice', () {
