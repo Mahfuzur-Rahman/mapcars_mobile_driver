@@ -230,9 +230,9 @@ class DispatchBoardController extends StateNotifier<DispatchBoardState> {
   Future<void> _announce(Trip trip) => _alerts.newRequest(
         tripId: trip.id,
         pickup: trip.pickupAddress,
-        fare: trip.fareAmount == null
+        fare: trip.driverEarnings == null
             ? null
-            : '£${trip.fareAmount!.toStringAsFixed(2)}',
+            : '£${trip.driverEarnings!.toStringAsFixed(2)}',
       );
 
   void _onAvailable(List<Object?>? args) {

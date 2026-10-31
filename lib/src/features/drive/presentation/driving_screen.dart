@@ -68,7 +68,8 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
   Widget build(BuildContext context) {
     final trip = widget.trip;
     final progress = _progress;
-    final fare = trip.fareAmount;
+    // The driver sees only their own take-home, never the customer's fare.
+    final fare = trip.driverEarnings;
     final unread =
         ref.watch(tripRealtimeProvider.select((s) => s.unreadMessages));
     // Cash says what to collect; card says there is nothing to. Unknown methods
@@ -223,7 +224,7 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
               _StatCard(
                   value:
                       fare != null ? '£${fare.toStringAsFixed(2)}' : '—',
-                  sub: 'fare',
+                  sub: 'you earn',
                   valueColor: Brand.green),
             ],
           ),

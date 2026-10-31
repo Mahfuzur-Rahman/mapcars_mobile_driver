@@ -70,7 +70,8 @@ class RequestCard extends StatelessWidget {
       );
 
   Widget _card(BuildContext context, Duration left, bool lapsed) {
-    final fare = trip.fareAmount ?? 0;
+    // What the driver gets, not the customer's fare.
+    final fare = trip.driverEarnings ?? 0;
     final miles = trip.distanceMiles ?? 0;
 
     return McSheet(
@@ -151,7 +152,7 @@ class RequestCard extends StatelessWidget {
             padding: 14,
             child: Row(
               children: [
-                _Stat('£${fare.toStringAsFixed(2)}', 'Fare'),
+                _Stat('£${fare.toStringAsFixed(2)}', 'You earn'),
                 _Stat('${miles.toStringAsFixed(1)} mi', 'Distance'),
                 if (trip.tier != null && trip.tier!.isNotEmpty)
                   _Stat(_titleCase(trip.tier!), 'Tier'),

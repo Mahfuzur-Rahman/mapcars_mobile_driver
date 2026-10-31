@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/widgets/mc.dart';
-import '../providers/fare_chart_provider.dart';
 import '../services/rating_service.dart';
 import '../services/trip_service.dart';
 import 'widgets/drop_off_payment.dart';
@@ -70,25 +69,12 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
     // Null for a method this build doesn't know — better no line than a
     // "collected" claim that might be wrong.
     final paymentLine = completedPaymentLine(trip);
-    final feePercent =
-        ref.watch(fareChartProvider).asData?.value.driverFeePercent ?? 15.0;
-
-    // Every figure comes off the trip itself; the fee % is only used to derive
-    // a fee for the odd trip the API completed without one recorded.
-    final farePence = ((trip.fareAmount ?? 0) * 100).round();
-    final feePence = trip.platformFeeAmount != null
-        ? (trip.platformFeeAmount! * 100).round()
-        : (farePence * feePercent / 100).round();
-    // The API's driverEarnings is the base take-home (fare − fee); the tip is a
-    // separate field paid 100% to the driver, so add it back for the total.
-    final baseEarningsPence = trip.driverEarnings != null
-        ? (trip.driverEarnings! * 100).round()
-        : farePence - feePence;
+    // The driver only ever sees their own take-home — never the customer's
+    // fare or the platform fee. The API's driverEarnings is the base take-home;
+    // the tip is a separate field paid 100% to the driver.
+    final baseEarningsPence = ((trip.driverEarnings ?? 0) * 100).round();
     final tipPence = (trip.tipAmount * 100).round();
     final earningsPence = baseEarningsPence + tipPence;
-    final feeLabel = feePercent % 1 == 0
-        ? feePercent.toStringAsFixed(0)
-        : feePercent.toStringAsFixed(1);
 
     return Scaffold(
       backgroundColor: Brand.bg,
@@ -143,9 +129,7 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _BreakdownRow('Trip fare', formatGbp(farePence)),
-                        _BreakdownRow('MAP CARS fee ($feeLabel%)',
-                            '−${formatGbp(feePence)}'),
+                        _BreakdownRow('Trip earnings', formatGbp(baseEarningsPence)),
                         _BreakdownRow('Tip', formatGbp(tipPence)),
                         Container(
                           height: 1,
