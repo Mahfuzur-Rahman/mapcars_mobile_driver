@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -149,6 +150,12 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
   final _emergencyNameCtrl = TextEditingController();
   final _emergencyPhoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
+  final _dayCtrl = TextEditingController();
+  final _monthCtrl = TextEditingController();
+  final _yearCtrl = TextEditingController();
+  final _dayFocus = FocusNode();
+  final _monthFocus = FocusNode();
+  final _yearFocus = FocusNode();
   DateTime? _dob;
   bool _hasPicture = false;
   bool _marketingConsent = false;
@@ -183,6 +190,7 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
       _emergencyNameCtrl.text = profile.emergencyContactName ?? '';
       _emergencyPhoneCtrl.text = profile.emergencyContactPhone ?? '';
       _dob = profile.dateOfBirth;
+      _fillDobBoxes(_dob);
       _hasPicture = profile.hasProfilePicture;
       _marketingConsent = profile.marketingConsent;
       _emailCtrl.text = profile.email ?? '';
@@ -197,6 +205,12 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
   void dispose() {
     widget.controller._detach();
     _nameCtrl.dispose();
+    _dayCtrl.dispose();
+    _monthCtrl.dispose();
+    _yearCtrl.dispose();
+    _dayFocus.dispose();
+    _monthFocus.dispose();
+    _yearFocus.dispose();
     _addressCtrl.dispose();
     _nationalIdCtrl.dispose();
     _drivingLicenceCtrl.dispose();
@@ -230,7 +244,47 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
       firstDate: DateTime(now.year - 100),
       lastDate: now,
     );
-    if (picked != null) setState(() => _dob = picked);
+    if (picked != null) {
+      setState(() {
+        _dob = picked;
+        _fillDobBoxes(picked);
+      });
+    }
+  }
+
+  void _fillDobBoxes(DateTime? d) {
+    _dayCtrl.text = d == null ? '' : d.day.toString().padLeft(2, '0');
+    _monthCtrl.text = d == null ? '' : d.month.toString().padLeft(2, '0');
+    _yearCtrl.text = d == null ? '' : d.year.toString();
+  }
+
+  bool get _dobBlank =>
+      _dayCtrl.text.isEmpty && _monthCtrl.text.isEmpty && _yearCtrl.text.isEmpty;
+
+  /// Typed entry: three complete boxes that make a real, past date become
+  /// [_dob]; anything else (half-filled, 31/02/1990, a future date) clears it,
+  /// and [_submit] reports it rather than silently saving nothing. Moves focus
+  /// on once a box is full.
+  void _onDobTyped({FocusNode? next, required int fullLength}) {
+    final d = int.tryParse(_dayCtrl.text);
+    final mo = int.tryParse(_monthCtrl.text);
+    final y = int.tryParse(_yearCtrl.text);
+    DateTime? parsed;
+    if (d != null && mo != null && y != null && _yearCtrl.text.length == 4) {
+      final candidate = DateTime(y, mo, d);
+      final now = DateTime.now();
+      if (candidate.day == d &&
+          candidate.month == mo &&
+          !candidate.isAfter(now) &&
+          y >= now.year - 100) {
+        parsed = candidate;
+      }
+    }
+    _dob = parsed;
+    if (next != null) {
+      final box = next == _monthFocus ? _dayCtrl : _monthCtrl;
+      if (box.text.length == fullLength) next.requestFocus();
+    }
   }
 
   Future<void> _submit() async {
@@ -242,6 +296,11 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
     }
     if (nationalId.isEmpty) {
       widget.controller._setFormError('Please enter your National Insurance number.');
+      return;
+    }
+    if (!_dobBlank && _dob == null) {
+      widget.controller._setFormError(
+          'Please enter a valid date of birth (day, month and 4-digit year), or pick it from the calendar.');
       return;
     }
     final email = _emailCtrl.text.trim();
@@ -320,8 +379,21 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
       ..showSnackBar(const SnackBar(content: Text('Email verified')));
   }
 
-  String _formatDob(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')} / ${d.month.toString().padLeft(2, '0')} / ${d.year}';
+  Widget _dobBox(TextEditingController c, FocusNode f, String hint, int len,
+          FocusNode? next) =>
+      McField(
+        editable: true,
+        controller: c,
+        focusNode: f,
+        placeholder: hint,
+        textAlign: TextAlign.center,
+        keyboardType: TextInputType.number,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(len),
+        ],
+        onChanged: (_) => _onDobTyped(next: next, fullLength: len),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -387,11 +459,35 @@ class _DriverProfileFormState extends ConsumerState<DriverProfileForm> {
         ],
         const SizedBox(height: 12),
         _label('Date of birth'),
-        McField(
-          icon: 'cal',
-          value: _dob == null ? null : _formatDob(_dob!),
-          placeholder: 'DD / MM / YYYY',
-          onTap: _pickDob,
+        // Type it in three boxes (focus jumps ahead as each fills) or tap the
+        // calendar to pick it.
+        Row(
+          children: [
+            Expanded(flex: 2, child: _dobBox(_dayCtrl, _dayFocus, 'DD', 2, _monthFocus)),
+            const SizedBox(width: 8),
+            Expanded(flex: 2, child: _dobBox(_monthCtrl, _monthFocus, 'MM', 2, _yearFocus)),
+            const SizedBox(width: 8),
+            Expanded(flex: 3, child: _dobBox(_yearCtrl, _yearFocus, 'YYYY', 4, null)),
+            const SizedBox(width: 8),
+            Semantics(
+              button: true,
+              label: 'Pick date of birth from calendar',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _pickDob,
+                child: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: Brand.paper,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Brand.line, width: 1.5),
+                  ),
+                  child: const Center(child: Ico('cal', size: 22, color: Brand.blue)),
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         _label('Home address'),

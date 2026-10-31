@@ -51,6 +51,9 @@ class McField extends StatefulWidget {
     this.editable = false,
     this.controller,
     this.keyboardType,
+    this.inputFormatters,
+    this.focusNode,
+    this.textAlign = TextAlign.start,
     this.obscure = false,
     this.autofocus = false,
     this.onChanged,
@@ -69,6 +72,11 @@ class McField extends StatefulWidget {
   final bool editable;
   final TextEditingController? controller;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+
+  /// Supply one to drive focus from outside (e.g. auto-advancing between boxes).
+  final FocusNode? focusNode;
+  final TextAlign textAlign;
   final bool obscure;
   final bool autofocus;
   final ValueChanged<String>? onChanged;
@@ -86,7 +94,8 @@ class McField extends StatefulWidget {
 
 class _McFieldState extends State<McField> {
   TextEditingController? _internal;
-  final FocusNode _focus = FocusNode();
+  FocusNode? _ownFocus;
+  FocusNode get _focus => widget.focusNode ?? (_ownFocus ??= FocusNode());
 
   TextEditingController get _controller {
     if (widget.controller != null) return widget.controller!;
@@ -96,13 +105,27 @@ class _McFieldState extends State<McField> {
   @override
   void initState() {
     super.initState();
-    _focus.addListener(() => setState(() {}));
+    _focus.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() => setState(() {});
+
+  // A caller's focusNode outlives this field, so the listener must come off it
+  // (or a later focus change calls setState on a disposed field).
+  @override
+  void didUpdateWidget(McField old) {
+    super.didUpdateWidget(old);
+    if (old.focusNode != widget.focusNode) {
+      (old.focusNode ?? _ownFocus)?.removeListener(_onFocusChange);
+      _focus.addListener(_onFocusChange);
+    }
   }
 
   @override
   void dispose() {
+    _focus.removeListener(_onFocusChange);
     _internal?.dispose();
-    _focus.dispose();
+    _ownFocus?.dispose();
     super.dispose();
   }
 
@@ -116,6 +139,8 @@ class _McFieldState extends State<McField> {
             controller: _controller,
             focusNode: _focus,
             keyboardType: widget.keyboardType,
+            inputFormatters: widget.inputFormatters,
+            textAlign: widget.textAlign,
             obscureText: widget.obscure,
             autofocus: widget.autofocus,
             onChanged: widget.onChanged,
