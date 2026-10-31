@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -99,6 +100,25 @@ class RequestAlerts {
       body: where,
       // Shaped like the FCM push, so a tap routes to the board either way.
       payload: jsonEncode({'type': 'tripAvailable', 'tripId': tripId}),
+    );
+  }
+
+  /// The passenger wrote in this trip's chat. Sound + banner + buzz, so a
+  /// driver with eyes on the road or on a map hears it.
+  ///
+  /// Foreground only: once the app is backgrounded the server's FCM push
+  /// (`MessageService`) renders the tray notification itself, and raising a
+  /// local one as well would show the same message twice.
+  Future<void> newMessage({required String tripId, required String text}) async {
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state != null && state != AppLifecycleState.resumed) return;
+    await _show(
+      // One slot per trip, so a burst of messages updates one banner rather
+      // than stacking a new one each time.
+      id: 9500 + (tripId.hashCode.abs() % 400),
+      title: 'Message from your passenger',
+      body: text,
+      payload: jsonEncode({'type': 'messageReceived', 'tripId': tripId}),
     );
   }
 

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/notifications/request_alerts.dart';
 import '../../../core/realtime/realtime_service.dart';
 import '../models/chat_message.dart';
 import '../services/trip_service.dart';
@@ -213,6 +214,12 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
         state = state.copyWith(
             chatMessages: [...state.chatMessages, msg],
             unreadMessages: unread);
+        // Sound + banner for a passenger message nobody is reading yet.
+        if (msg.senderType == 'customer' && !_chatOpen) {
+          unawaited(_ref
+              .read(requestAlertsProvider)
+              .newMessage(tripId: msg.tripId, text: msg.content));
+        }
       }
     } catch (e) {
       if (kDebugMode) debugPrint('[trip-realtime] bad messageReceived payload: $e');
