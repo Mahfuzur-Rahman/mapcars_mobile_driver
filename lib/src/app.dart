@@ -12,6 +12,7 @@ import 'core/notifications/push_tap_navigator.dart';
 import 'core/notifications/request_alerts.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/updates/update_nudge.dart';
 import 'core/widgets/offline_banner.dart';
 import 'features/drive/providers/dispatch_board_controller.dart';
 import 'features/drive/providers/trip_realtime_controller.dart';
@@ -153,7 +154,8 @@ class _MapcarsDriverAppState extends ConsumerState<MapcarsDriverApp>
       // where it matters most (the dispatch board, mid-job) are the ones nobody
       // would remember to opt in.
       builder: (context, child) =>
-          OfflineBanner(child: child ?? const SizedBox.shrink()),
+          UpdateNudge(
+            child: OfflineBanner(child: child ?? const SizedBox.shrink())),
     );
   }
 }
