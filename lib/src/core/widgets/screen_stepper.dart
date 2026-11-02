@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../config/app_config.dart';
 import '../../features/auth/providers/auth_notifier.dart';
 import 'mc.dart';
+import 'menu_search.dart';
 
 // Re-exported so the many screens that already import this file for
 // `devDrawerOpenProvider` keep working.
@@ -17,14 +18,29 @@ export 'drawer_state.dart';
 /// prototype-only steps in the walk-through and are hidden outside dev builds —
 /// a customer or driver must never be able to tap straight into `/searching` or
 /// `/trip-complete` from a menu.
+///
+/// [inMenu] `false` keeps a user-facing destination out of the menu list while
+/// leaving it findable through the menu's search box — a page people look for
+/// that would only clutter the list. [keywords] are the other words someone
+/// might type for it ("card" for Payment, "language" for Settings).
 class StepRoute {
-  const StepRoute(this.path, this.label, {this.category, this.icon});
+  const StepRoute(
+    this.path,
+    this.label, {
+    this.category,
+    this.icon,
+    this.inMenu = true,
+    this.keywords = const [],
+  });
   final String path;
   final String label;
   final String? category;
   final String? icon;
+  final bool inMenu;
+  final List<String> keywords;
 
-  bool get isMenuItem => icon != null;
+  bool get isMenuItem => icon != null && inMenu;
+  bool get isSearchable => icon != null;
 }
 
 /// Shell wrapper that hosts the slide-out navigation menu drawer.
@@ -33,6 +49,8 @@ class StepRoute {
 /// Renders in two modes. In dev (`AppConfig.showDevNav`) it is the prototype
 /// walk-through: every screen, numbered, with its route path. In every other
 /// build it is a plain user menu — only the destinations tagged with an icon.
+/// Either way a search box at the top filters it: the user destinations (and
+/// their keywords) in a real build, every screen and route path in dev.
 class ScreenStepper extends ConsumerStatefulWidget {
   const ScreenStepper({
     super.key,
@@ -56,10 +74,18 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
   static const Duration _slide = Duration(milliseconds: 240);
 
   final ScrollController _scroll = ScrollController();
+  final TextEditingController _search = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _search.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
     _scroll.dispose();
+    _search.dispose();
     super.dispose();
   }
 
@@ -69,6 +95,12 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
       ? widget.routes
       : widget.routes.where((r) => r.isMenuItem).toList();
 
+  /// What the search box looks through: search-only pages too, never the
+  /// prototype steps outside dev.
+  List<StepRoute> get _searchPool => _devMode
+      ? widget.routes
+      : widget.routes.where((r) => r.isSearchable).toList();
+
   /// Category headers are the prototype's taxonomy ("Onboarding", "Dev Tools"),
   /// so they only make sense alongside the full walk-through list.
   bool _showsCategory(List<StepRoute> items, int i) =>
@@ -77,6 +109,12 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
       (i == 0 || items[i - 1].category != items[i].category);
 
   void _close() => ref.read(devDrawerOpenProvider.notifier).state = false;
+
+  /// Every opening starts from the plain menu, keyboard down.
+  void _resetSearch() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _search.clear();
+  }
 
   Future<void> _logout() async {
     _close();
@@ -108,9 +146,13 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
   Widget build(BuildContext context) {
     final items = _items;
     final isOpen = ref.watch(devDrawerOpenProvider);
+    final query = _search.text.trim();
+    final hits =
+        query.isEmpty ? null : searchMenu(_searchPool, query, matchPath: _devMode);
 
     ref.listen<bool>(devDrawerOpenProvider, (was, now) {
       if (now && was != true) _revealCurrent(items);
+      if (!now && was == true) _resetSearch();
     });
 
     return PopScope(
@@ -152,28 +194,48 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
             child: Material(
               elevation: 16,
               color: Brand.bg,
-              child: Column(
-                children: [
-                  _header(context),
-                  Expanded(
-                    child: ListView.builder(
-                      controller: _scroll,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: items.length,
-                      itemBuilder: (context, i) {
-                        if (!_showsCategory(items, i)) return _row(items[i], i + 1);
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _categoryHeader(items[i].category!),
-                            _row(items[i], i + 1),
-                          ],
-                        );
-                      },
+              // The drawer sits outside every Scaffold, so nothing else lifts
+              // it clear of the keyboard the search box brings up.
+              child: Padding(
+                padding: EdgeInsets.only(
+                    bottom: MediaQuery.viewInsetsOf(context).bottom),
+                child: Column(
+                  children: [
+                    _header(context),
+                    _searchField(),
+                    Expanded(
+                      child: hits == null
+                          ? ListView.builder(
+                              controller: _scroll,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: items.length,
+                              itemBuilder: (context, i) {
+                                if (!_showsCategory(items, i)) return _row(items[i]);
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _categoryHeader(items[i].category!),
+                                    _row(items[i]),
+                                  ],
+                                );
+                              },
+                            )
+                          : hits.isEmpty
+                              ? _noResults(query)
+                              : ListView.builder(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  keyboardDismissBehavior:
+                                      ScrollViewKeyboardDismissBehavior.onDrag,
+                                  itemCount: hits.length,
+                                  itemBuilder: (context, i) => _row(
+                                    hits[i].route,
+                                    hint: hits[i].matchedKeyword,
+                                  ),
+                                ),
                     ),
-                  ),
-                  _footer(context),
-                ],
+                    _footer(context),
+                  ],
+                ),
               ),
             ),
           ),
@@ -255,6 +317,45 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
     );
   }
 
+  Widget _searchField() => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+        child: McField(
+          icon: 'search',
+          editable: true,
+          controller: _search,
+          placeholder: _devMode ? 'Search screens' : 'What are you looking for?',
+          suffix: _search.text.isEmpty
+              ? null
+              : IconButton(
+                  onPressed: _search.clear,
+                  icon: const Icon(Icons.close_rounded, color: Brand.sub, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                  tooltip: 'Clear search',
+                ),
+        ),
+      );
+
+  Widget _noResults(String query) => ListView(
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        children: [
+          const Ico('search', size: 28, color: Brand.sub),
+          const SizedBox(height: 10),
+          Text(
+            'Nothing matches “$query”',
+            textAlign: TextAlign.center,
+            style: tw(FontWeight.w800, 14, Brand.ink),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Check the spelling or try a shorter word.',
+            textAlign: TextAlign.center,
+            style: tw(FontWeight.w600, 13, Brand.sub),
+          ),
+        ],
+      );
+
   Widget _categoryHeader(String category) => SizedBox(
         height: _categoryHeight,
         child: Padding(
@@ -272,8 +373,13 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
         ),
       );
 
-  Widget _row(StepRoute item, int number) {
+  /// [hint] is the search keyword that found this row, shown under the label
+  /// ("Language" under Settings) so the result explains itself.
+  Widget _row(StepRoute item, {String? hint}) {
     final isSelected = item.path == widget.current;
+    // Walk-through numbering stays put while the list is filtered.
+    final number = widget.routes.indexOf(item) + 1;
+    final subtitle = _devMode ? (hint ?? item.path) : hint;
 
     return SizedBox(
       height: _rowHeight,
@@ -327,9 +433,11 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
                       ),
                       // Raw route paths are a prototype aid, and Brand.faint on
                       // Brand.bg only reaches ~2.6:1 — Brand.sub clears 4.5:1.
-                      if (_devMode)
+                      if (subtitle != null)
                         Text(
-                          item.path,
+                          _devMode || subtitle.isEmpty
+                              ? subtitle
+                              : subtitle[0].toUpperCase() + subtitle.substring(1),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: tw(FontWeight.w500, 11, Brand.sub),

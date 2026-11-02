@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/mc.dart';
+import '../../../core/router/nav.dart';
 import '../../auth/providers/auth_notifier.dart';
 
 class ChangePasswordScreen extends ConsumerStatefulWidget {
@@ -57,7 +58,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password changed.')),
       );
-      Navigator.of(context).pop();
+      backOr(context, '/settings');
     }
   }
 
@@ -77,7 +78,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
+                    onTap: () => backOr(context, '/settings'),
                     child: const Ico('chevL', size: 22, color: Brand.ink),
                   ),
                   const SizedBox(width: 12),

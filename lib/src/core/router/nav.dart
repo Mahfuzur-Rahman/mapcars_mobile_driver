@@ -5,9 +5,12 @@ import 'package:go_router/go_router.dart';
 /// there's a page underneath, otherwise goes to [fallback]. `go` replaces the
 /// whole stack, so a bare `context.pop()` on such a screen throws "nothing to
 /// pop" and the arrow becomes a dead tap — this keeps it working from any
-/// entry path (deep link, dev stepper, go vs push).
+/// entry path (deep link, menu drawer, go vs push). A screen hosted by a plain
+/// [Navigator] with no router above it (as widget tests pump them) just pops.
 void backOr(BuildContext context, String fallback) {
-  if (context.canPop()) {
+  if (GoRouter.maybeOf(context) == null) {
+    Navigator.of(context).maybePop();
+  } else if (context.canPop()) {
     context.pop();
   } else {
     context.go(fallback);

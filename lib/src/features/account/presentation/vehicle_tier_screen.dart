@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../../core/widgets/mc.dart';
+import '../../../core/router/nav.dart';
 import '../services/vehicle_service.dart';
 
 class VehicleTierScreen extends ConsumerStatefulWidget {
@@ -167,7 +168,7 @@ class _VehicleTierScreenState extends ConsumerState<VehicleTierScreen> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
+                    onTap: () => backOr(context, '/profile'),
                     child: const Ico('chevL', size: 22, color: Brand.ink),
                   ),
                   const SizedBox(width: 12),

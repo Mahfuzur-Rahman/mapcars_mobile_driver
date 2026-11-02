@@ -42,11 +42,11 @@ class AppConfig {
     }
   }
 
-  /// `APP_ENV` defaults to `local`, so a release build made without an explicit
-  /// `--dart-define=APP_ENV=...` would otherwise ship the developer walk-through
-  /// menu (and its dev-only routes) to the stores. A release binary is never
-  /// "dev", whatever the define says.
-  static bool get isDev => env == AppEnv.local && !kReleaseMode;
+  /// Debug builds only — what `flutter run` installs straight onto a device,
+  /// whichever API it points at. Release and profile builds (everything that
+  /// goes to the stores or to testers) are never "dev", so they can never show
+  /// the prototype walk-through menu or reach the `/screens` index.
+  static bool get isDev => kDebugMode;
 
   /// App version for crash reports — pass at build time:
   /// `flutter build apk --dart-define=APP_VERSION=1.2.0`. Empty when unset,
@@ -64,6 +64,7 @@ class AppConfig {
   /// mode. Outside that the menu drawer falls back to the real driver menu.
   static bool get showDevNav => isDev && !screenshotMode;
 
-  /// True in dev so OTP codes are displayed on-screen for testing.
-  static bool get showDevOtp => isDev && kDebugMode;
+  /// True in debug builds against the local API, so OTP codes are displayed
+  /// on-screen for testing (only the local API hands back a dev code).
+  static bool get showDevOtp => isDev && env == AppEnv.local;
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/mc.dart';
+import '../../../core/router/nav.dart';
 import 'driver_profile_form.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -34,7 +35,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
+                    onTap: () => backOr(context, '/profile'),
                     child: const Ico('chevL', size: 22, color: Brand.ink),
                   ),
                   const SizedBox(width: 12),
@@ -52,7 +53,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   // Signed-in only: email + its verification (trip summaries
                   // are only emailed to a verified address).
                   showEmail: true,
-                  onSubmitted: () => Navigator.of(context).pop(),
+                  onSubmitted: () => backOr(context, '/profile'),
                 ),
               ),
             ),
