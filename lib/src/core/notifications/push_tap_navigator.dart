@@ -108,9 +108,15 @@ class PushTapNavigator {
       TripStatus.inProgress => '/driving',
       _ => null,
     };
-    // Finished or cancelled: the conversation is closed, and TripGate would
-    // show a different (or no) trip. Don't open a dead chat.
-    if (screen == null) return false;
+    // Finished or cancelled: not a live trip any more, but the conversation is
+    // still there (and writable for 24 h after completion). Open it from the
+    // Messages list so Back lands somewhere sensible.
+    if (screen == null) {
+      _router.go('/messages');
+      await _settle();
+      unawaited(_router.push('/messages/$tripId'));
+      return true;
+    }
 
     if (realtime.activeTripId != tripId || _here != screen) {
       // Same re-arm as the home screen's resume: the screen is about to receive

@@ -16,6 +16,9 @@ import 'core/updates/update_nudge.dart';
 import 'core/widgets/offline_banner.dart';
 import 'features/drive/providers/dispatch_board_controller.dart';
 import 'features/drive/providers/trip_realtime_controller.dart';
+import 'features/messages/models/chat_message.dart';
+import 'features/messages/providers/chat_inbox.dart';
+import 'features/messages/providers/unread_provider.dart';
 
 class MapcarsDriverApp extends ConsumerStatefulWidget {
   const MapcarsDriverApp({super.key});
@@ -58,6 +61,18 @@ class _MapcarsDriverAppState extends ConsumerState<MapcarsDriverApp>
   void _listenForPushedRequests() {
     try {
       _fcm = FirebaseMessaging.onMessage.listen((message) {
+        // A chat message for any trip: the push carries the whole message, so
+        // the inbox can de-duplicate it against SignalR, raise the banner and
+        // bump the badge without a round trip.
+        if (message.data['type'] == 'messageReceived') {
+          final msg = ChatMessage.fromPushData(message.data);
+          if (msg != null) {
+            ref.read(chatInboxProvider).receive(msg);
+          } else {
+            ref.read(unreadProvider.notifier).refresh();
+          }
+          return;
+        }
         if (message.data['type'] != 'tripAvailable') return;
         final tripId = message.data['tripId'];
         if (tripId == null || tripId.isEmpty) return;
@@ -128,6 +143,11 @@ class _MapcarsDriverAppState extends ConsumerState<MapcarsDriverApp>
       // socket was suspended is gone, so re-read rather than wait for the next
       // request to arrive.
       ref.read(dispatchBoardProvider.notifier).refreshNow();
+      // Chat sent while the app was away came in as a tray notification, not
+      // through the inbox — re-read the badge from the server.
+      if (ref.read(authTokenProvider) != null) {
+        ref.read(unreadProvider.notifier).refresh();
+      }
     }
   }
 
@@ -139,8 +159,10 @@ class _MapcarsDriverAppState extends ConsumerState<MapcarsDriverApp>
       final push = ref.read(pushServiceProvider);
       if (next != null && prev == null) {
         push.registerAndListen();
+        ref.read(unreadProvider.notifier).refresh();
       } else if (next == null && prev != null) {
         push.unregister();
+        ref.read(unreadProvider.notifier).reset();
       }
     });
 
