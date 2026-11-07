@@ -27,6 +27,38 @@ class ChatMessage {
         content: j['content'] as String,
         sentAtUtc: DateTime.parse(j['sentAtUtc'] as String),
       );
+
+  /// Builds a message from an FCM `messageReceived` data payload (string values).
+  ///
+  /// Null when the payload lacks the message — a push from an API older than the
+  /// inbox — so the caller falls back to re-reading the unread count.
+  static ChatMessage? fromPushData(Map<String, dynamic> data) {
+    String? read(String key) {
+      final v = data[key]?.toString();
+      return (v == null || v.isEmpty) ? null : v;
+    }
+
+    final id = read('messageId');
+    final tripId = read('tripId');
+    final sender = read('senderType');
+    final content = read('content');
+    final sent = DateTime.tryParse(read('sentAtUtc') ?? '');
+    if (id == null ||
+        tripId == null ||
+        sender == null ||
+        content == null ||
+        sent == null) {
+      return null;
+    }
+    return ChatMessage(
+      id: id,
+      tripId: tripId,
+      senderType: _canonicalSender(sender),
+      senderId: read('senderId') ?? '',
+      content: content,
+      sentAtUtc: sent.toUtc(),
+    );
+  }
 }
 
 /// Folds the passenger's sender type onto one spelling.
