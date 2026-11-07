@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,7 +26,8 @@ class ChatInbox {
   ChatInbox(this._ref);
 
   final Ref _ref;
-  final _seen = LinkedHashSet<String>();
+  // A Set literal is insertion-ordered, so `first` is the oldest id.
+  final _seen = <String>{};
   final _arrivals = StreamController<ChatMessage>.broadcast();
 
   /// Every new message, for an open chat thread to append.
