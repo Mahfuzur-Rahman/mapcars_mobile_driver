@@ -1,6 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mapcars_driver/src/features/messages/chat_party.dart';
 import 'package:mapcars_driver/src/features/messages/models/chat_message.dart';
 import 'package:mapcars_driver/src/features/messages/models/conversation.dart';
+import 'package:mapcars_driver/src/features/messages/presentation/conversation_tile.dart';
 
 void main() {
   group('Conversation.fromJson', () {
@@ -81,6 +84,82 @@ void main() {
       expect(
           ChatMessage.fromPushData({'type': 'messageReceived', 'tripId': 't1'}),
           isNull);
+    });
+  });
+
+  group('chatTimeLabel', () {
+    final now = DateTime(2026, 11, 7, 15, 30);
+    test('today shows the time', () {
+      expect(chatTimeLabel(DateTime(2026, 11, 7, 9, 5).toUtc(), now), '09:05');
+    });
+    test('yesterday says so', () {
+      expect(chatTimeLabel(DateTime(2026, 11, 6, 22).toUtc(), now), 'Yesterday');
+    });
+    test('older shows the date', () {
+      expect(chatTimeLabel(DateTime(2026, 10, 30, 8).toUtc(), now), '30 Oct');
+    });
+  });
+
+  group('previewText', () {
+    test('prefixes my own last message', () {
+      expect(
+        previewText(ConversationPreview(
+            content: 'On my way', senderType: kMe, sentAtUtc: DateTime.utc(2026))),
+        'You: On my way',
+      );
+    });
+    test('shows theirs as is', () {
+      expect(
+        previewText(ConversationPreview(
+            content: "I'm outside",
+            senderType: kOtherParty,
+            sentAtUtc: DateTime.utc(2026))),
+        "I'm outside",
+      );
+    });
+  });
+
+  group('ConversationTile', () {
+    Conversation convo() => Conversation.fromJson({
+          'tripId': 't1',
+          'counterpartName': 'Ahmed Ali',
+          'pickupAddress': 'Heathrow T5',
+          'dropoffAddress': 'Soho Square',
+          'tripStatus': 'Completed',
+          'tripDateUtc': '2026-11-03T10:00:00Z',
+          'lastMessage': {
+            'content': 'Left my umbrella',
+            'senderType': kOtherParty,
+            'sentAtUtc': '2026-11-03T11:00:00Z',
+          },
+          'unreadCount': 0,
+          'canSend': false,
+        });
+
+    Future<void> pump(WidgetTester tester, int unread) => tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ConversationTile(conversation: convo(), unread: unread),
+            ),
+          ),
+        );
+
+    testWidgets('shows name, route and preview', (tester) async {
+      await pump(tester, 0);
+      expect(find.text('Ahmed Ali'), findsOneWidget);
+      expect(find.text('Heathrow T5 → Soho Square'), findsOneWidget);
+      expect(find.text('Left my umbrella'), findsOneWidget);
+      expect(find.text('2'), findsNothing);
+    });
+
+    testWidgets('an unread conversation shows its count', (tester) async {
+      await pump(tester, 2);
+      expect(find.text('2'), findsOneWidget);
+    });
+
+    testWidgets('caps the count at 9+', (tester) async {
+      await pump(tester, 14);
+      expect(find.text('9+'), findsOneWidget);
     });
   });
 }

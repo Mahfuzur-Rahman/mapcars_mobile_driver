@@ -49,7 +49,8 @@ void main() {
     test('menu shows the user destinations, including Edit profile and Change password', () {
       expect(
         [for (final r in kDriverFlow.where((r) => r.isMenuItem)) r.label],
-        ['Home', 'Earnings', 'Payouts', 'Statements', 'Trip history', 'Documents',
+        ['Home', 'Messages', 'Earnings', 'Payouts', 'Statements', 'Trip history',
+         'Documents',
          'Profile', 'Edit profile', 'Settings', 'Change password'],
       );
     });

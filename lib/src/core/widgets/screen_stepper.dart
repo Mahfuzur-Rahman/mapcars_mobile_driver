@@ -6,6 +6,7 @@ import '../config/app_config.dart';
 import '../../features/auth/providers/auth_notifier.dart';
 import 'mc.dart';
 import 'menu_search.dart';
+import '../../features/messages/providers/unread_provider.dart';
 
 // Re-exported so the many screens that already import this file for
 // `devDrawerOpenProvider` keep working.
@@ -445,6 +446,16 @@ class _ScreenStepperState extends ConsumerState<ScreenStepper> {
                     ],
                   ),
                 ),
+                if (item.path == '/messages')
+                  Builder(builder: (_) {
+                    final n = ref.watch(unreadProvider.select((s) => s.total));
+                    return n == 0
+                        ? const SizedBox.shrink()
+                        : Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: McCountPill(n),
+                          );
+                  }),
                 Icon(
                   isSelected ? Icons.check_circle_rounded : Icons.chevron_right_rounded,
                   color: isSelected ? Brand.blue : Brand.sub,

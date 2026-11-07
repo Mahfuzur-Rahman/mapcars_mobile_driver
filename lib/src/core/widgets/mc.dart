@@ -11,6 +11,7 @@ import '../router/nav.dart';
 import '../theme/brand.dart';
 import '../theme/mc_icons.dart';
 import 'drawer_state.dart';
+import '../../features/messages/providers/unread_provider.dart';
 
 export '../theme/brand.dart';
 export '../theme/mc_icons.dart';
@@ -264,6 +265,31 @@ class McButton extends StatelessWidget {
   }
 }
 
+/// The red unread pill on its own — for rows where there is no control to pin
+/// it to (the Messages list, the menu drawer). [McBadge] uses it too.
+class McCountPill extends StatelessWidget {
+  const McCountPill(this.count, {super.key});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          constraints: const BoxConstraints(minWidth: 20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFDC2626),
+            borderRadius: BorderRadius.circular(99),
+            border: Border.all(color: Brand.paper, width: 2),
+          ),
+          child: Text(
+            count > 9 ? '9+' : '$count',
+            textAlign: TextAlign.center,
+            style: tw(FontWeight.w900, 11, Colors.white),
+          ),
+        ),
+      );
+}
+
 /// A small count bubble pinned to the top-right of [child].
 ///
 /// Nothing is drawn at zero, so callers can pass a live count without guarding.
@@ -283,26 +309,7 @@ class McBadge extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         child,
-        Positioned(
-          top: -5,
-          right: -5,
-          child: ExcludeSemantics(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              constraints: const BoxConstraints(minWidth: 20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFDC2626),
-                borderRadius: BorderRadius.circular(99),
-                border: Border.all(color: Brand.paper, width: 2),
-              ),
-              child: Text(
-                count > 9 ? '9+' : '$count',
-                textAlign: TextAlign.center,
-                style: tw(FontWeight.w900, 11, Colors.white),
-              ),
-            ),
-          ),
-        ),
+        Positioned(top: -5, right: -5, child: McCountPill(count)),
       ],
     );
   }
@@ -925,8 +932,34 @@ class McMenuButton extends ConsumerWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) =>
-      McCircleButton('menu', color: color, onTap: () => openMenuDrawer(ref));
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(unreadProvider.select((s) => s.total));
+    final button = McCircleButton('menu',
+        color: color,
+        semanticLabel: unread == 0 ? null : 'Menu, $unread unread messages',
+        onTap: () => openMenuDrawer(ref));
+    if (unread == 0) return button;
+    // A dot, not a count: the drawer's Messages row carries the number.
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        button,
+        Positioned(
+          top: 2,
+          right: 2,
+          child: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: const Color(0xFFDC2626),
+              shape: BoxShape.circle,
+              border: Border.all(color: Brand.paper, width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 /// Navigation header containing Back, Home and Menu buttons.

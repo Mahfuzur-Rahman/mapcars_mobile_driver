@@ -41,6 +41,7 @@ import '../../features/onboarding/presentation/verify_screen.dart';
 import '../../features/navigate/models/place.dart';
 import '../../features/navigate/presentation/route_preview_screen.dart';
 import '../../features/navigate/presentation/set_route_screen.dart';
+import '../../features/messages/presentation/conversations_screen.dart';
 
 /// Ordered walk-through used by the floating hamburger menu drawer.
 ///
@@ -68,6 +69,8 @@ const List<StepRoute> kDriverFlow = [
   StepRoute('/chat', 'Chat', category: 'Driving Flow'),
   StepRoute('/driving', 'Driving', category: 'Driving Flow'),
   StepRoute('/trip-complete', 'Trip complete', category: 'Driving Flow'),
+  StepRoute('/messages', 'Messages', category: 'Account', icon: 'msg',
+      keywords: ['chat', 'inbox', 'message', 'unread', 'driver', 'passenger', 'conversation']),
   StepRoute('/earnings', 'Earnings', category: 'Account', icon: 'chart',
       keywords: ['money', 'income', 'pay', 'today', 'this week']),
   StepRoute('/payouts', 'Payouts', category: 'Account', icon: 'bank',
@@ -261,6 +264,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           _trip('/arrived', (trip) => ArrivedScreen(trip: trip)),
           _trip('/chat', (trip) => ChatScreen(
               tripId: trip.id, backFallback: '/nav-pickup', attachRealtime: true)),
+        _r('/messages', () => const ConversationsScreen()),
+        GoRoute(
+          path: '/messages/:tripId',
+          builder: (c, s) => ChatScreen(tripId: s.pathParameters['tripId']!),
+        ),
           _trip('/driving', (trip) => DrivingScreen(trip: trip)),
           _trip(
             '/trip-complete',

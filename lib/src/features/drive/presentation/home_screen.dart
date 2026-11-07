@@ -11,6 +11,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/widgets/mc.dart';
+import '../../messages/presentation/inbox_button.dart';
 import '../../../core/widgets/current_location_map.dart';
 import '../../account/models/week_earnings.dart';
 import '../../account/providers/driver_trips_provider.dart';
@@ -331,44 +332,51 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Consumer(
-                    builder: (context, ref, _) {
-                      final isOnline =
-                          ref.watch(apiHealthProvider).value ?? false;
-                      final hasToken = ref.watch(authTokenProvider) != null;
-                      final isConnected = isOnline && hasToken;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 7),
-                        decoration: const BoxDecoration(
-                          color: Brand.paper,
-                          borderRadius: BorderRadius.all(Radius.circular(99)),
-                          boxShadow: Brand.floatShadow,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color:
-                                    isConnected ? Brand.green : Colors.amber,
-                                shape: BoxShape.circle,
+                // Messages sits on this second row, under Menu: a fourth circle
+                // in the top row squeezed the status pill until "Not approved"
+                // no longer fit on a 360dp phone.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const InboxButton(),
+                    const Spacer(),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final isOnline =
+                            ref.watch(apiHealthProvider).value ?? false;
+                        final hasToken = ref.watch(authTokenProvider) != null;
+                        final isConnected = isOnline && hasToken;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 7),
+                          decoration: const BoxDecoration(
+                            color: Brand.paper,
+                            borderRadius: BorderRadius.all(Radius.circular(99)),
+                            boxShadow: Brand.floatShadow,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color:
+                                      isConnected ? Brand.green : Colors.amber,
+                                  shape: BoxShape.circle,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              isConnected ? 'Connected' : 'Offline',
-                              style: tw(FontWeight.w800, 11.5, Brand.sub),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                              const SizedBox(width: 6),
+                              Text(
+                                isConnected ? 'Connected' : 'Offline',
+                                style: tw(FontWeight.w800, 11.5, Brand.sub),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
