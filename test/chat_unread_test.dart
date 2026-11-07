@@ -1,16 +1,19 @@
 // The unread-message rule and its badge.
 //
 // Chat was previously invisible until opened: a driver asking "which entrance?"
-// got silence unless the customer happened to look. These pin the two ways that
-// could go wrong in the other direction — badging your own messages, or badging
-// a conversation the customer is already reading.
+// got silence unless the customer happened to look. These pin the ways that
+// could go wrong in the other direction — badging your own messages, badging a
+// conversation you are already reading, or losing count across trips.
 
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mapcars_driver/src/core/widgets/mc.dart';
-import 'package:mapcars_driver/src/features/drive/models/chat_message.dart';
+import 'package:mapcars_driver/src/features/messages/chat_party.dart';
+import 'package:mapcars_driver/src/features/messages/models/chat_message.dart';
+import 'package:mapcars_driver/src/features/messages/providers/chat_inbox.dart';
+import 'package:mapcars_driver/src/features/messages/providers/unread_provider.dart';
 
 ChatMessage _msg(String senderType) => ChatMessage(
       id: 'm1',
@@ -25,52 +28,41 @@ Widget _host(Widget child) =>
     MaterialApp(home: Scaffold(body: Center(child: child)));
 
 void main() {
-  group('unreadAfter (driver app: the other party is the customer)', () {
-    test("counts the customer's message when chat is closed", () {
-      expect(
-        unreadAfter(
-            current: 0,
-            message: _msg('customer'),
-            otherParty: 'customer',
-            chatOpen: false),
-        1,
-      );
+  group('classifyIncoming', () {
+    test("the other party's message is unread when its chat is not open", () {
+      expect(classifyIncoming(_msg(kOtherParty), openTripId: null),
+          IncomingChat.unread);
+      expect(classifyIncoming(_msg(kOtherParty), openTripId: 'another-trip'),
+          IncomingChat.unread);
     });
 
-    test('ignores it while the driver is reading the conversation', () {
-      expect(
-        unreadAfter(
-            current: 3,
-            message: _msg('customer'),
-            otherParty: 'customer',
-            chatOpen: true),
-        3,
-      );
+    test('it is read on arrival while that chat is on screen', () {
+      expect(classifyIncoming(_msg(kOtherParty), openTripId: 't1'),
+          IncomingChat.readNow);
     });
 
-    test("never counts the driver's own message", () {
-      // sendMessage appends optimistically and the push echoes back; badging
-      // either would put a count on your own text.
-      expect(
-        unreadAfter(
-            current: 2,
-            message: _msg('driver'),
-            otherParty: 'customer',
-            chatOpen: false),
-        2,
-      );
+    test('my own message (the echo of a send) is never unread', () {
+      expect(classifyIncoming(_msg(kMe), openTripId: null), IncomingChat.ignore);
+    });
+  });
+
+  group('UnreadState', () {
+    test('bump counts per trip and totals across trips', () {
+      final s = const UnreadState().bump('a').bump('a').bump('b');
+      expect(s.forTrip('a'), 2);
+      expect(s.forTrip('b'), 1);
+      expect(s.total, 3);
     });
 
-    test('accumulates across several messages', () {
-      var n = 0;
-      for (var i = 0; i < 4; i++) {
-        n = unreadAfter(
-            current: n,
-            message: _msg('customer'),
-            otherParty: 'customer',
-            chatOpen: false);
-      }
-      expect(n, 4);
+    test('clear drops one trip only', () {
+      final s = const UnreadState().bump('a').bump('b').clear('a');
+      expect(s.forTrip('a'), 0);
+      expect(s.total, 1);
+    });
+
+    test('an unknown or null trip has nothing unread', () {
+      expect(const UnreadState().forTrip(null), 0);
+      expect(const UnreadState().forTrip('x'), 0);
     });
   });
 

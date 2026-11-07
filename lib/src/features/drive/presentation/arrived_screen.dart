@@ -10,6 +10,7 @@ import '../providers/trip_realtime_controller.dart';
 import '../services/trip_service.dart';
 import 'cancel_job.dart';
 import 'widgets/live_route_map.dart';
+import '../../messages/providers/unread_provider.dart';
 
 /// At the kerb: confirm the customer's meet-up PIN, then start the trip.
 class ArrivedScreen extends ConsumerStatefulWidget {
@@ -101,7 +102,7 @@ class _ArrivedScreenState extends ConsumerState<ArrivedScreen> {
     final trip = widget.trip;
     final customerName = trip.customer?.name ?? 'Your customer';
     final unread =
-        ref.watch(tripRealtimeProvider.select((s) => s.unreadMessages));
+        ref.watch(unreadProvider.select((s) => s.forTrip(widget.trip.id)));
     final rating = trip.customer?.rating;
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {

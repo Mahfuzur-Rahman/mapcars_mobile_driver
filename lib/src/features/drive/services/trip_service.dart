@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
-import '../models/chat_message.dart';
 
 /// Mirrors `Mapcars.Domain.Enums.TripStatus`.
 enum TripStatus {
@@ -309,25 +308,6 @@ class TripService {
           },
         );
         return Trip.fromJson(res.data!);
-      });
-
-  /// `GET /trips/{id}/messages` — full chat history for this trip.
-  Future<List<ChatMessage>> getMessages(String tripId) =>
-      apiCall(() async {
-        final res = await _dio.get<List<dynamic>>('$_base/$tripId/messages');
-        return (res.data ?? [])
-            .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
-            .toList();
-      });
-
-  /// `POST /trips/{id}/messages` — send a chat message.
-  Future<ChatMessage> sendMessage(String tripId, {required String content}) =>
-      apiCall(() async {
-        final res = await _dio.post<Map<String, dynamic>>(
-          '$_base/$tripId/messages',
-          data: {'content': content},
-        );
-        return ChatMessage.fromJson(res.data!);
       });
 }
 

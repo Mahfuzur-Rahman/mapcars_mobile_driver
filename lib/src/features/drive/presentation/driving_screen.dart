@@ -13,6 +13,7 @@ import '../services/nav_handoff.dart';
 import '../services/trip_service.dart';
 import 'widgets/drop_off_payment.dart';
 import 'widgets/live_route_map.dart';
+import '../../messages/providers/unread_provider.dart';
 
 /// Leg 2: customer on board, driving to the destination. Live route, live ETA, and
 /// what (if anything) to collect on arrival.
@@ -71,7 +72,7 @@ class _DrivingScreenState extends ConsumerState<DrivingScreen> {
     // The driver sees only their own take-home, never the customer's fare.
     final fare = trip.driverEarnings;
     final unread =
-        ref.watch(tripRealtimeProvider.select((s) => s.unreadMessages));
+        ref.watch(unreadProvider.select((s) => s.forTrip(widget.trip.id)));
     // Cash says what to collect; card says there is nothing to. Unknown methods
     // show neither — see [DropOffPaymentBanner].
     final showPayment = trip.isCash || trip.isCard;

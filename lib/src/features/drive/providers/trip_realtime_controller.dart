@@ -6,42 +6,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_client.dart';
-import '../../../core/notifications/request_alerts.dart';
 import '../../../core/realtime/realtime_service.dart';
+import '../../messages/providers/chat_inbox.dart';
 import '../models/chat_message.dart';
 import '../services/trip_service.dart';
 import 'driver_location_reporting_controller.dart';
 
 /// Latest customer/system-cancelled trip pushed over realtime, if any — screens
 /// watch this to notice a cancellation that happened out from under them.
+///
+/// Chat lives elsewhere now: messages, unread counts and banners belong to the
+/// messages feature (`ChatInbox`, `chatThreadProvider`, `unreadProvider`); this
+/// controller only forwards the trip group's `messageReceived` events there.
 class TripRealtimeState {
-  const TripRealtimeState({
-    this.cancelledTrip,
-    this.chatMessages = const [],
-    this.unreadMessages = 0,
-  });
+  const TripRealtimeState({this.cancelledTrip});
   final Trip? cancelledTrip;
 
-  /// Chat messages for the active trip — seeded from GET on mount,
-  /// appended by messageReceived pushes and local sends.
-  final List<ChatMessage> chatMessages;
-
-  /// Messages from the passenger that have arrived since the driver last had
-  /// the chat screen open. Without this the Message button looked identical
-  /// whether nothing or five questions were waiting — and a driver at the
-  /// kerb is not going to open a conversation on the off-chance.
-  final int unreadMessages;
-
-  TripRealtimeState copyWith({
-    Trip? cancelledTrip,
-    List<ChatMessage>? chatMessages,
-    int? unreadMessages,
-  }) =>
-      TripRealtimeState(
-        cancelledTrip: cancelledTrip ?? this.cancelledTrip,
-        chatMessages: chatMessages ?? this.chatMessages,
-        unreadMessages: unreadMessages ?? this.unreadMessages,
-      );
+  TripRealtimeState copyWith({Trip? cancelledTrip}) =>
+      TripRealtimeState(cancelledTrip: cancelledTrip ?? this.cancelledTrip);
 }
 
 /// Joins the active trip's SignalR group so a customer (or ops) cancellation
@@ -194,84 +176,17 @@ class TripRealtimeController extends StateNotifier<TripRealtimeState> {
     if (cancelled && mounted) state = TripRealtimeState(cancelledTrip: trip);
   }
 
+  /// Hands the message to the app-wide inbox, which owns badges, banners and
+  /// the open chat thread for every trip.
   void _onMessageReceived(List<Object?>? args) {
     if (args == null || args.isEmpty) return;
     final raw = args.first;
     if (raw is! Map) return;
     try {
       final msg = ChatMessage.fromJson(Map<String, dynamic>.from(raw));
-      if (msg.tripId != _activeTripId) return;
-      // Deduplicate: the sender's own echo is already appended optimistically
-      // by sendMessage — skip it if we see it again from the push.
-      final already = state.chatMessages.any((m) => m.id == msg.id);
-      if (!already && mounted) {
-        final unread = unreadAfter(
-          current: state.unreadMessages,
-          message: msg,
-          otherParty: 'customer',
-          chatOpen: _chatOpen,
-        );
-        state = state.copyWith(
-            chatMessages: [...state.chatMessages, msg],
-            unreadMessages: unread);
-        // Sound + banner for a passenger message nobody is reading yet.
-        if (msg.senderType == 'customer' && !_chatOpen) {
-          unawaited(_ref
-              .read(requestAlertsProvider)
-              .newMessage(tripId: msg.tripId, text: msg.content));
-        }
-      }
+      _ref.read(chatInboxProvider).receive(msg);
     } catch (e) {
       if (kDebugMode) debugPrint('[trip-realtime] bad messageReceived payload: $e');
-    }
-  }
-
-  // ── Chat ──────────────────────────────────────────────────────────────────
-
-  /// Whether the chat screen is on top. Messages arriving while it is do not
-  /// count as unread — the driver is already reading them.
-  bool _chatOpen = false;
-
-  /// Called from the chat screen's `initState`. Clears the badge.
-  void markChatOpen() {
-    _chatOpen = true;
-    if (mounted && state.unreadMessages != 0) {
-      state = state.copyWith(unreadMessages: 0);
-    }
-  }
-
-  /// Called from the chat screen's `dispose`.
-  void markChatClosed() => _chatOpen = false;
-
-  /// Fetches the full message history for the active trip (called on chat
-  /// screen mount). Replaces whatever is in state.
-  Future<void> fetchMessages() async {
-    final tripId = _activeTripId;
-    if (tripId == null) return;
-    try {
-      final svc = _ref.read(tripServiceProvider);
-      final messages = await svc.getMessages(tripId);
-      if (mounted) state = state.copyWith(chatMessages: messages);
-    } catch (e) {
-      if (kDebugMode) debugPrint('[trip-realtime] fetchMessages failed: $e');
-    }
-  }
-
-  /// Sends a message and appends the server's response (with its real ID)
-  /// to state. The realtime push will also arrive, but [_onMessageReceived]
-  /// deduplicates by ID so there's no double.
-  Future<void> sendMessage(String content) async {
-    final tripId = _activeTripId;
-    if (tripId == null) return;
-    try {
-      final svc = _ref.read(tripServiceProvider);
-      final msg = await svc.sendMessage(tripId, content: content);
-      if (mounted) {
-        state = state.copyWith(
-            chatMessages: [...state.chatMessages, msg]);
-      }
-    } catch (e) {
-      if (kDebugMode) debugPrint('[trip-realtime] sendMessage failed: $e');
     }
   }
 

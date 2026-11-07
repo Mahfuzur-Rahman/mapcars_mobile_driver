@@ -10,6 +10,7 @@ import '../services/nav_handoff.dart';
 import '../services/trip_service.dart';
 import 'cancel_job.dart';
 import 'widgets/live_route_map.dart';
+import '../../messages/providers/unread_provider.dart';
 
 /// Leg 1 of the active trip: driving to the customer. Shows the real route to the
 /// pickup with a live ETA, hands turn-by-turn off to the driver's navigation app
@@ -88,7 +89,7 @@ class _NavPickupScreenState extends ConsumerState<NavPickupScreen> {
     final trip = widget.trip;
     final progress = _progress;
     final unread =
-        ref.watch(tripRealtimeProvider.select((s) => s.unreadMessages));
+        ref.watch(unreadProvider.select((s) => s.forTrip(widget.trip.id)));
 
     ref.listen<TripRealtimeState>(tripRealtimeProvider, (prev, next) {
       if (next.cancelledTrip?.id == trip.id) {

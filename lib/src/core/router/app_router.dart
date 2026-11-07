@@ -259,7 +259,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           // own trip from the API, or says plainly that there isn't one.
           _trip('/nav-pickup', (trip) => NavPickupScreen(trip: trip)),
           _trip('/arrived', (trip) => ArrivedScreen(trip: trip)),
-          _trip('/chat', (trip) => ChatScreen(trip: trip)),
+          _trip('/chat', (trip) => ChatScreen(
+              tripId: trip.id, backFallback: '/nav-pickup', attachRealtime: true)),
           _trip('/driving', (trip) => DrivingScreen(trip: trip)),
           _trip(
             '/trip-complete',

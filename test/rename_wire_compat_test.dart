@@ -16,6 +16,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mapcars_driver/src/features/drive/models/chat_message.dart';
+import 'package:mapcars_driver/src/features/messages/providers/chat_inbox.dart';
 import 'package:mapcars_driver/src/features/drive/services/trip_service.dart';
 
 Map<String, dynamic> _msgJson(String senderType) => {
@@ -60,13 +61,9 @@ void main() {
       // the API is using that week, otherParty is only ever 'customer'.
       for (final wire in ['rider', 'customer']) {
         expect(
-          unreadAfter(
-            current: 0,
-            message: ChatMessage.fromJson(_msgJson(wire)),
-            otherParty: 'customer',
-            chatOpen: false,
-          ),
-          1,
+          classifyIncoming(ChatMessage.fromJson(_msgJson(wire)),
+              openTripId: null),
+          IncomingChat.unread,
           reason: 'sender type "$wire" should have counted as unread',
         );
       }
